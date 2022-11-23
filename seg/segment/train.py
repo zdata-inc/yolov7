@@ -195,7 +195,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         gs,
         single_cls,
         hyp=hyp,
-        augment=True,
+        augment=False,
         cache=None if opt.cache == 'val' else opt.cache,
         rect=opt.rect,
         rank=LOCAL_RANK,
