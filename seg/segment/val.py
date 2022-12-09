@@ -321,6 +321,21 @@ def run(
             if save_json:
                 pred_masks = scale_masks(im[si].shape[1:],
                                          pred_masks.permute(1, 2, 0).contiguous().cpu().numpy(), shape, shapes[si][1])
+                # Grab indices of the predictions that were correct at a high
+                # IOU threshold
+                good_ixs = correct_masks[:, -2].cpu().numpy()
+                good_masks = pred_masks[:, :, good_ixs]
+                import cv2
+                im0 = cv2.imread(path)
+                for i, pred_i in enumerate(np.argwhere(good_ixs)):
+                    obj_masked_img = good_masks[:, :, i, None]*im0
+                    tmp_output_dir = Path('/media/cat/oadams/tmp-masked-imgs')
+                    out_path = tmp_output_dir / path.stem / f'{pred_i.item()}.jpg'
+                    out_path.parent.mkdir(exist_ok=True, parents=True)
+                    tmp_output_dir.mkdir(exist_ok=True, parents=True)
+                    cv2.imwrite(out_path, obj_masked_img)
+                breakpoint()
+
                 save_one_json(predn, jdict, path, class_map, pred_masks)  # append to COCO-JSON dictionary
             # callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
 
