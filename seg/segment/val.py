@@ -87,7 +87,7 @@ def save_one_json(predn, jdict, path, class_map, pred_masks):
             'segmentation': rles[i]})
 
 
-def process_batch(detections, labels, iouv, pred_masks=None, gt_masks=None, overlap=False, masks=False):
+def process_batch(detections, labels, iouv, pred_masks=None, gt_masks=None, overlap=False, masks=False, return_matches=False):
     """
     Return correct prediction matrix
     Arguments:
@@ -121,7 +121,12 @@ def process_batch(detections, labels, iouv, pred_masks=None, gt_masks=None, over
                 # matches = matches[matches[:, 2].argsort()[::-1]]
                 matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
             correct[matches[:, 1].astype(int), i] = True
-    return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
+        if i == 8:
+            matches_iou90 = matches
+    if return_matches:
+        return torch.tensor(correct, dtype=torch.bool, device=iouv.device), matches_iou90
+    else:
+        return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
 
 
 @smart_inference_mode()
@@ -306,7 +311,7 @@ def run(
                 scale_coords(im[si].shape[1:], tbox, shape, shapes[si][1])  # native-space labels
                 labelsn = torch.cat((labels[:, 0:1], tbox), 1)  # native-space labels
                 correct_bboxes = process_batch(predn, labelsn, iouv)
-                correct_masks = process_batch(predn, labelsn, iouv, pred_masks, gt_masks, overlap=overlap, masks=True)
+                correct_masks, matches_iou90 = process_batch(predn, labelsn, iouv, pred_masks, gt_masks, overlap=overlap, masks=True, return_matches=True)
                 if plots:
                     confusion_matrix.process_batch(predn, labelsn)
             stats.append((correct_masks, correct_bboxes, pred[:, 4], pred[:, 5], labels[:, 0]))  # (conf, pcls, tcls)
@@ -321,6 +326,7 @@ def run(
             if save_json:
                 pred_masks = scale_masks(im[si].shape[1:],
                                          pred_masks.permute(1, 2, 0).contiguous().cpu().numpy(), shape, shapes[si][1])
+
                 # Grab indices of the predictions that were correct at a high
                 # IOU threshold
                 good_ixs = correct_masks[:, -2].cpu().numpy()
@@ -330,7 +336,8 @@ def run(
                 for i, pred_i in enumerate(np.argwhere(good_ixs)):
                     obj_masked_img = good_masks[:, :, i, None]*im0
                     tmp_output_dir = Path('/media/cat/oadams/tmp-masked-imgs')
-                    out_path = tmp_output_dir / path.stem / f'{pred_i.item()}.jpg'
+                    ref_obj_i = matches_iou90[matches_iou90[:, 1] == pred_i].squeeze()[0]
+                    out_path = tmp_output_dir / path.stem / f'{int(ref_obj_i)}.jpg'
                     out_path.parent.mkdir(exist_ok=True, parents=True)
                     tmp_output_dir.mkdir(exist_ok=True, parents=True)
                     cv2.imwrite(out_path, obj_masked_img)
