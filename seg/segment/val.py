@@ -336,7 +336,10 @@ def run(
                 for i, pred_i in enumerate(np.argwhere(good_ixs)):
                     obj_masked_img = good_masks[:, :, i, None]*im0
                     tmp_output_dir = Path('/media/cat/oadams/tmp-masked-imgs')
-                    ref_obj_i = matches_iou90[matches_iou90[:, 1] == pred_i].squeeze()[0]
+                    ref_obj_i = int(matches_iou90[matches_iou90[:, 1] == pred_i].squeeze()[0])
+                    _, x_start, y_start, x_end, y_end = labelsn[ref_obj_i]
+                    obj_masked_crop = obj_masked_img[int(y_start):int(y_end)+1,
+                                                   int(x_start):int(x_end)+1]
                     out_path = tmp_output_dir / path.stem / f'{int(ref_obj_i)}.jpg'
                     out_path.parent.mkdir(exist_ok=True, parents=True)
                     tmp_output_dir.mkdir(exist_ok=True, parents=True)
