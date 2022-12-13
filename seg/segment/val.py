@@ -121,7 +121,7 @@ def process_batch(detections, labels, iouv, pred_masks=None, gt_masks=None, over
                 # matches = matches[matches[:, 2].argsort()[::-1]]
                 matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
             correct[matches[:, 1].astype(int), i] = True
-        if i == 8:
+        if i == 5:
             matches_iou90 = matches
     if return_matches:
         return torch.tensor(correct, dtype=torch.bool, device=iouv.device), matches_iou90
@@ -339,12 +339,14 @@ def run(
                     ref_obj_i = int(matches_iou90[matches_iou90[:, 1] == pred_i].squeeze()[0])
                     _, x_start, y_start, x_end, y_end = labelsn[ref_obj_i]
                     obj_masked_crop = obj_masked_img[int(y_start):int(y_end)+1,
-                                                   int(x_start):int(x_end)+1]
+                                                     int(x_start):int(x_end)+1]
+                    crop_mask = good_masks[:, :, i, None][int(y_start):int(y_end)+1,int(x_start):int(x_end)+1]
+                    white_bg = (1 - crop_mask)*255
+                    obj_masked_crop_white_bg = obj_masked_crop + white_bg
                     out_path = tmp_output_dir / path.stem / f'{int(ref_obj_i)}.jpg'
                     out_path.parent.mkdir(exist_ok=True, parents=True)
                     tmp_output_dir.mkdir(exist_ok=True, parents=True)
-                    cv2.imwrite(out_path, obj_masked_img)
-                breakpoint()
+                    cv2.imwrite(out_path, obj_masked_crop_white_bg)
 
                 save_one_json(predn, jdict, path, class_map, pred_masks)  # append to COCO-JSON dictionary
             # callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
