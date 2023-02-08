@@ -80,6 +80,7 @@ def run(
         half=False,  # use FP16 half-precision inference
         dnn=False,  # use OpenCV DNN for ONNX inference
         num_masks=32,
+        return_masks=False,
 ):
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
@@ -189,7 +190,10 @@ def run(
 
                     # Generate the crop images
                     scaled_mask = scale_masks(im.shape[2:], mask.cpu().numpy(), im0.shape)
-                    line = (cls.item(), *xywh, mask == 1, conf.item()) if save_conf else (cls, *xywh, mask == 1)  # label format
+                    if return_masks:
+                        line = (cls.item(), *xywh, mask == 1, conf.item()) if save_conf else (cls, *xywh, mask == 1)  # label format
+                    else:
+                        line = (cls, *xywh, conf) if save_conf else (cls, *xywh)
                     labels.append(line)
                     crop_mask, _ = save_one_box(xyxy, scaled_mask, save=False, BGR=False)
                     crop_img, _ = save_one_box(xyxy, im0, BGR=True, save=False)
