@@ -53,11 +53,37 @@ class ComputeLoss:
         # Losses
         for i, pi in enumerate(p):  # layer index, layer predictions
             b, a, gj, gi = indices[i]  # image, anchor, gridy, gridx
-            tobj = torch.zeros(pi.shape[:4], dtype=pi.dtype, device=self.device)  # target obj
+            if bs == 2:
+                tobj = torch.zeros(pi.shape[:3], dtype=pi.dtype, device=self.device)  # target obj
+            else:
+                tobj = torch.zeros(pi.shape[:4], dtype=pi.dtype, device=self.device)  # target obj
 
-            n = b.shape[0]  # number of targets
+            # We're going to focus on the predictions for the 'after' image
+            # first.
+            if bs == 2:
+                a = a[b == 1]
+                gj = gj[b == 1]
+                gi = gi[b == 1]
+                tcls[i] = tcls[i][b == 1]
+                tbox[i] = tbox[i][b == 1]
+                anchors[i] = anchors[i][b == 1]
+                tidxs[i] = tidxs[i][b == 1]
+                xywhn[i] = xywhn[i][b == 1]
+
+
+            if bs == 2:
+                n = b[b == 1].shape[0]  # number of targets
+            else:
+                n = b.shape[0]  # number of targets
             if n:
-                pxy, pwh, _, pcls, pmask = pi[b, a, gj, gi].split((2, 2, 1, self.nc, nm), 1)  # subset of predictions
+
+
+                if bs == 2:
+                    breakpoint()
+                    pxy, pwh, _, pcls, pmask = pi[a, gj, gi].split((2, 2, 1, self.nc, nm), 1)  # subset of predictions
+                else:
+                    pxy, pwh, _, pcls, pmask = pi[b, a, gj, gi].split((2, 2, 1, self.nc, nm), 1)  # subset of predictions
+
 
                 # Box regression
                 pxy = pxy.sigmoid() * 2 - 0.5
@@ -73,7 +99,10 @@ class ComputeLoss:
                     b, a, gj, gi, iou = b[j], a[j], gj[j], gi[j], iou[j]
                 if self.gr < 1:
                     iou = (1.0 - self.gr) + self.gr * iou
-                tobj[b, a, gj, gi] = iou  # iou ratio
+                if bs == 2:
+                    tobj[a, gj, gi] = iou  # iou ratio
+                else:
+                    tobj[b, a, gj, gi] = iou  # iou ratio
 
                 # Classification
                 if self.nc > 1:  # cls loss (only if multiple classes)
@@ -81,13 +110,18 @@ class ComputeLoss:
                     t[range(n), tcls[i]] = self.cp
                     lcls += self.BCEcls(pcls, t)  # BCE
 
+
                 # Mask regression
                 if tuple(masks.shape[-2:]) != (mask_h, mask_w):  # downsample
                     masks = F.interpolate(masks[None], (mask_h, mask_w), mode="bilinear", align_corners=False)[0]
                 marea = xywhn[i][:, 2:].prod(1)  # mask width, height normalized
                 mxyxy = xywh2xyxy(xywhn[i] * torch.tensor([mask_w, mask_h, mask_w, mask_h], device=self.device))
                 for bi in b.unique():
+                    if bs == 2 and bi != 1:
+                        continue
                     j = b == bi  # matching index
+                    if bs == 2:
+                        j = j[j]
                     if self.overlap:
                         mask_gti = torch.where(masks[bi][None] == tidxs[i][j].view(-1, 1, 1), 1.0, 0.0)
                     else:
