@@ -112,10 +112,18 @@ class IDetect(nn.Module):
 
     def forward(self, x):
         z = []  # inference output
+        bs = x[0].shape[0]
         for i in range(self.nl):
             x[i] = self.m[i](self.ia[i](x[i]))  # conv
-            bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
-            x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
+            if bs == 2:
+                x[i] = self.mtf(x[i][0], x[i][1]) # Merge features using the MTF layer
+                _, ny, nx = x[i].shape
+                x[i] = x[i].view(self.na, self.no, ny, nx).permute(0,2,3,1).contiguous()
+            elif bs == 1:
+                bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
+                x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
+            else:
+                raise NotImplementedError()
 
             if not self.training:  # inference
                 if self.dynamic or self.grid[i].shape[2:4] != x[i].shape[2:4]:
@@ -163,6 +171,89 @@ class Segment(Detect):
         return (x, p) if self.training else (x[0], p) if self.export else (x[0], (x[1], p))
 
 
+class MTF(nn.Module):
+    def __init__(self, channel, mode='iade', kernel_size=1):
+        super(MTF, self).__init__()
+        assert mode in ['i', 'a', 'd', 'e', 'ia', 'id', 'ie', 'iae', 'ide', 'iad', 'iade', 'i2ade', 'iad2e', 'i2ad2e', 'i2d']
+        self.mode = mode
+        self.channel = channel
+        self.relu = nn.ReLU(inplace=True)
+        if kernel_size == 1:
+            padding = 0
+        elif kernel_size == 3:
+            padding = 1
+        if 'i2' in mode:
+            self.i0 = nn.Conv2d(self.channel, self.channel, kernel_size, padding=padding, stride=1, bias=False)
+            self.i1 = nn.Conv2d(self.channel, self.channel, kernel_size, padding=padding, stride=1, bias=False)
+        else:
+            self.conv = nn.Conv2d(self.channel, self.channel, kernel_size, padding=padding, stride=1, bias=False)
+
+        if 'ad2'in mode:
+            self.app = nn.Conv2d(self.channel, self.channel, kernel_size, padding=padding, stride=1, bias=False)
+            self.dis = nn.Conv2d(self.channel, self.channel, kernel_size, padding=padding, stride=1, bias=False)
+        else:
+            self.res = nn.Conv2d(self.channel, self.channel, kernel_size, padding=padding, stride=1, bias=False)
+
+        self.exchange = nn.Conv2d(self.channel, self.channel, kernel_size, padding=padding, stride=1, bias=False)
+        print("MTF: mode: {} kernel_size: {}".format(self.mode, kernel_size))
+
+    def forward(self, f0, f1):
+        #t0 = self.conv(f0)
+        #t1 = self.conv(f1)
+        if 'i2' in self.mode:
+            info = self.i0(f0) + self.i1(f1)
+        else:
+            info = self.conv(f0 + f1)
+
+        if 'd' in self.mode:
+            if 'ad2' in self.mode:
+                disappear = self.dis(self.relu(f0 - f1))
+            else:
+                disappear = self.res(self.relu(f0 - f1))
+        else:
+            disappear = 0
+
+        if 'a' in self.mode:
+            if 'ad2' in self.mode:
+                appear = self.app(self.relu(f1 - f0))
+            else:
+                appear = self.res(self.relu(f1 - f0))
+        else:
+            appear = 0
+
+        if 'e' in self.mode:
+            exchange = self.exchange(torch.max(f0, f1) - torch.min(f0, f1))
+        else:
+            exchange = 0
+
+        if self.mode == 'i':
+            f = info
+        elif self.mode == 'a':
+            f = appear
+        elif self.mode == 'd':
+            f = disappear
+        elif self.mode == 'e':
+            f = exchange
+        elif self.mode == 'ia':
+            f = info + 2 * appear
+        elif self.mode in ['id', 'i2d']:
+            f = info + 2 * disappear
+        elif self.mode == 'ie':
+            f = info + 2 * exchange
+        elif self.mode == 'iae':
+            f = info + appear + exchange
+        elif self.mode == 'ide':
+            f = info + disappear + exchange
+        elif self.mode == 'iad':
+            f = info + disappear + appear
+        elif self.mode in ['iade', 'i2ade', 'iad2e', 'i2ad2e']:
+            f = info + disappear + appear + exchange
+
+        f = self.relu(f)
+        return f
+
+
+
 class ISegment(IDetect):
     # YOLOR Segment head for segmentation models
     def __init__(self, nc=80, anchors=(), nm=32, npr=256, ch=(), inplace=True):
@@ -173,6 +264,7 @@ class ISegment(IDetect):
         self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
         self.proto = Proto(ch[0], self.npr, self.nm)  # protos
         self.detect = IDetect.forward
+        self.mtf = MTF(self.m[0].out_channels)
 
     def forward(self, x):
         p = self.proto(x[0])

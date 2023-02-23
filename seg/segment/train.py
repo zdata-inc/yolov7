@@ -83,6 +83,11 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         opt.resume, opt.noval, opt.nosave, opt.workers, opt.freeze, opt.mask_ratio
     # callbacks.run('on_pretrain_routine_start')
 
+    # This is how we'll do it initially for change detection. We can adjust it
+    # later but for now we'll assume we always have batches of two, with the
+    # first image being before, and the second image being after.
+    assert batch_size == 2 
+
     # Directories
     w = save_dir / 'weights'  # weights dir
     (w.parent if evolve else w).mkdir(parents=True, exist_ok=True)  # make dir
