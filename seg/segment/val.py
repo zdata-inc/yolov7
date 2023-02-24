@@ -240,6 +240,8 @@ def run(
     pbar = tqdm(dataloader, desc=s, bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')  # progress bar
     for batch_i, (im, targets, paths, shapes, masks) in enumerate(pbar):
         # callbacks.run('on_val_batch_start')
+        im = im.squeeze()
+        paths = paths[0]
         with dt[0]:
             if cuda:
                 im = im.to(device, non_blocking=True)

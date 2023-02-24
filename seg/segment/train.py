@@ -86,7 +86,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     # This is how we'll do it initially for change detection. We can adjust it
     # later but for now we'll assume we always have batches of two, with the
     # first image being before, and the second image being after.
-    assert batch_size == 2 
+    assert batch_size == 1 
 
     # Directories
     w = save_dir / 'weights'  # weights dir
@@ -231,14 +231,14 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     if RANK in {-1, 0}:
         val_loader = create_dataloader(val_path,
                                        imgsz,
-                                       batch_size // WORLD_SIZE * 2,
+                                       batch_size // WORLD_SIZE,
                                        gs,
                                        single_cls,
                                        hyp=hyp,
                                        cache=None if noval else opt.cache,
                                        rect=True,
                                        rank=-1,
-                                       workers=workers * 2,
+                                       workers=workers,
                                        pad=0.5,
                                        mask_downsample_ratio=mask_ratio,
                                        overlap_mask=overlap,
@@ -309,6 +309,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             pbar = tqdm(pbar, total=nb, bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')  # progress bar
         optimizer.zero_grad()
         for i, (imgs, targets, paths, _, masks) in pbar:  # batch ------------------------------------------------------
+            imgs = imgs.squeeze()
+            paths = paths[0]
             # callbacks.run('on_train_batch_start')
             ni = i + nb * epoch  # number integrated batches (since train start)
             imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
@@ -393,6 +395,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                                                          model=ema.ema,
                                                          single_cls=single_cls,
                                                          dataloader=val_loader,
+                                                         #dataloader=train_loader,
                                                          save_dir=save_dir,
                                                          plots=False,
                                                          callbacks=callbacks,

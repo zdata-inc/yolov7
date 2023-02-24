@@ -5,11 +5,12 @@ Dataloaders
 
 import os
 import random
+import re
 
 import cv2
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, distributed
+from torch.utils.data import DataLoader, Dataset, distributed
 
 from ..augmentations import augment_hsv, copy_paste, letterbox
 from ..dataloaders import InfiniteDataLoader, LoadImagesAndLabels, seed_worker
@@ -56,6 +57,8 @@ def create_dataloader(path,
             downsample_ratio=mask_downsample_ratio,
             overlap=overlap_mask)
 
+    dataset = FramePairDataset(dataset)
+
     batch_size = min(batch_size, len(dataset))
     nd = torch.cuda.device_count()  # number of CUDA devices
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
@@ -74,6 +77,26 @@ def create_dataloader(path,
         worker_init_fn=seed_worker,
         # generator=generator,
     ), dataset
+
+
+class FramePairDataset(Dataset):
+    def __init__(self, org_dataset):
+
+        def sort_key(item):
+            item_id = int(re.match(r'.*-(\d+).png', item[2])[1])
+            return item_id
+
+        self.org_dataset = org_dataset
+        sorted_items = sorted(self.org_dataset, key=sort_key)
+        self.paired_items = list(zip(sorted_items, sorted_items[1:]))
+        self.labels = self.org_dataset.labels
+        self.shapes = self.org_dataset.shapes
+
+    def __getitem__(self, i):
+        return LoadImagesAndLabelsAndMasks.collate_fn(self.paired_items[i])
+
+    def __len__(self):
+        return len(self.paired_items)
 
 
 class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
