@@ -242,6 +242,7 @@ def run(
         # callbacks.run('on_val_batch_start')
         im = im.squeeze()
         paths = paths[0]
+        shapes = shapes[0]
         with dt[0]:
             if cuda:
                 im = im.to(device, non_blocking=True)
