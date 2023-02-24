@@ -43,7 +43,7 @@ class ComputeLoss:
 
     def __call__(self, preds, targets, masks):  # predictions, targets, model
         p, proto = preds
-        p = [layer.unsqueeze(0) for layer in p]
+        #p = [layer.unsqueeze(0) for layer in p]
         targets = targets[targets[:, 0] == 0]
         bs, nm, mask_h, mask_w = proto.shape  # batch size, number of masks, mask height, mask width
         lcls = torch.zeros(1, device=self.device)

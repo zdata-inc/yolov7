@@ -118,7 +118,7 @@ class IDetect(nn.Module):
             if bs == 2:
                 x[i] = self.mtf(x[i][0], x[i][1]) # Merge features using the MTF layer
                 _, ny, nx = x[i].shape
-                x[i] = x[i].view(self.na, self.no, ny, nx).permute(0,2,3,1).contiguous()
+                x[i] = x[i].view(1, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
             elif bs == 1:
                 bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
                 x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
@@ -126,9 +126,8 @@ class IDetect(nn.Module):
                 raise NotImplementedError()
 
             if not self.training:  # inference
-                if bs == 2:
-                    breakpoint()
-                    x[i] = x[i].unsqueeze(0)
+                #if bs == 2:
+                #    x[i] = x[i].unsqueeze(0)
                 if self.dynamic or self.grid[i].shape[2:4] != x[i].shape[2:4]:
                     self.grid[i], self.anchor_grid[i] = self._make_grid(nx, ny, i)
 
