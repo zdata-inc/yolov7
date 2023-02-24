@@ -135,7 +135,10 @@ class IDetect(nn.Module):
                     y[..., 0:2] = (y[..., 0:2] * 2 + self.grid[i]) * self.stride[i]  # xy
                     y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
                 else:  # for YOLOv5 on AWS Inferentia https://github.com/ultralytics/yolov5/pull/2953
-                    xy, wh, etc = y.split((2, 2, self.no - 4), 3)  # tensor_split((2, 4, 5), 4) if torch 1.8.0
+                    if y.dim() == 4:
+                        stop = True
+                        y = y.unsqueeze(0)
+                    xy, wh, etc = y.split((2, 2, self.no - 4), 4)  # tensor_split((2, 4, 5), 4) if torch 1.8.0
                     xy = (xy * 2 + self.grid[i]) * self.stride[i]  # xy
                     wh = (wh * 2) ** 2 * self.anchor_grid[i]  # wh
                     y = torch.cat((xy, wh, etc), 4)
