@@ -309,7 +309,9 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             pbar = tqdm(pbar, total=nb, bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')  # progress bar
         optimizer.zero_grad()
         for i, (imgs, targets, paths, _, masks) in pbar:  # batch ------------------------------------------------------
-            targets = targets[targets[:, 0] == 0]
+            first_img_ixs = targets[:, 0] == 0
+            targets = targets[first_img_ixs]
+            masks = masks[first_img_ixs]
             imgs = imgs.squeeze()
             #paths = paths[0]
             # callbacks.run('on_train_batch_start')

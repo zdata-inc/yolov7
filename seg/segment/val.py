@@ -240,8 +240,9 @@ def run(
     pbar = tqdm(dataloader, desc=s, bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')  # progress bar
     for batch_i, (im, targets, paths, shapes, masks) in enumerate(pbar):
         # callbacks.run('on_val_batch_start')
-        targets = targets[targets[:, 0] == 0]
-        breakpoint()
+        first_img_ixs = targets[:, 0] == 0
+        targets = targets[first_img_ixs]
+        masks = masks[first_img_ixs]
         im = im.squeeze()
         #paths = paths[0]
         #shapes = shapes[0]
