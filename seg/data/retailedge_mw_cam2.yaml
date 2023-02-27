@@ -17,6 +17,7 @@ test: val.txt  # 20288 of 40670 images, submit to https://competitions.codalab.o
 names:
   0: box
   1: can
-  2: bottle
-  3: subsection
-  4: carrier
+  2: carrier
+  3: del_box
+  4: del_can
+  5: del_carrier
