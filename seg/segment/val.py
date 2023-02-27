@@ -240,9 +240,11 @@ def run(
     pbar = tqdm(dataloader, desc=s, bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')  # progress bar
     for batch_i, (im, targets, paths, shapes, masks) in enumerate(pbar):
         # callbacks.run('on_val_batch_start')
+        targets = targets[targets[:, 0] == 0]
+        breakpoint()
         im = im.squeeze()
-        paths = paths[0]
-        shapes = shapes[0]
+        #paths = paths[0]
+        #shapes = shapes[0]
         with dt[0]:
             if cuda:
                 im = im.to(device, non_blocking=True)
@@ -274,9 +276,12 @@ def run(
                                       max_det=max_det,
                                       nm=nm)
 
+
         # Metrics
         plot_masks = []  # masks for plotting
         for si, pred in enumerate(out):
+            if si != 0:
+                break
             labels = targets[targets[:, 0] == si, 1:]
             nl, npr = labels.shape[0], pred.shape[0]  # number of labels, predictions
             path, shape = Path(paths[si]), shapes[si][0]

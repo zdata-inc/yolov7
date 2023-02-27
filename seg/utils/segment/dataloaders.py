@@ -3,6 +3,7 @@
 Dataloaders
 """
 
+import copy
 import os
 import random
 import re
@@ -63,17 +64,18 @@ def create_dataloader(path,
     nd = torch.cuda.device_count()  # number of CUDA devices
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
     sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
-    loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
+    #loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
+    loader = DataLoader
     # generator = torch.Generator()
     # generator.manual_seed(0)
     return loader(
         dataset,
-        batch_size=batch_size,
+        batch_size=None,
         shuffle=shuffle and sampler is None,
         num_workers=nw,
         sampler=sampler,
         pin_memory=True,
-        collate_fn=LoadImagesAndLabelsAndMasks.collate_fn4 if quad else LoadImagesAndLabelsAndMasks.collate_fn,
+        #collate_fn=LoadImagesAndLabelsAndMasks.collate_fn4 if quad else LoadImagesAndLabelsAndMasks.collate_fn,
         worker_init_fn=seed_worker,
         # generator=generator,
     ), dataset
@@ -88,7 +90,11 @@ class FramePairDataset(Dataset):
 
         self.org_dataset = org_dataset
         sorted_items = sorted(self.org_dataset, key=sort_key)
-        self.paired_items = list(zip(sorted_items, sorted_items[1:]))
+        sorted_items2 = copy.deepcopy(sorted_items)
+        for item in sorted_items2:
+            # Indicate that this is actually the second example.
+            item[1][:, 0] = 1
+        self.paired_items = list(zip(sorted_items, sorted_items2[1:]))
         self.labels = self.org_dataset.labels
         self.shapes = self.org_dataset.shapes
 

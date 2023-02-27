@@ -116,7 +116,8 @@ class IDetect(nn.Module):
         for i in range(self.nl):
             x[i] = self.m[i](self.ia[i](x[i]))  # conv
             if bs == 2:
-                x[i] = self.mtf(x[i][0], x[i][1]) # Merge features using the MTF layer
+                #x[i] = self.mtf(x[i][0], x[i][1]) # Merge features using the MTF layer
+                x[i] = x[i][0]
                 _, ny, nx = x[i].shape
                 x[i] = x[i].view(1, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
             elif bs == 1:
@@ -200,6 +201,7 @@ class MTF(nn.Module):
         print("MTF: mode: {} kernel_size: {}".format(self.mode, kernel_size))
 
     def forward(self, f0, f1):
+        #return f0
         #t0 = self.conv(f0)
         #t1 = self.conv(f1)
         if 'i2' in self.mode:
