@@ -126,7 +126,10 @@ class Metric:
 
     def class_result(self, i):
         """class-aware result, return p[i], r[i], ap50[i], ap[i]"""
-        return (self.p[i], self.r[i], self.ap50[i], self.ap[i])
+        try:
+            return (self.p[i], self.r[i], self.ap50[i], self.ap[i])
+        except IndexError:
+            return (0, 0, 0, 0)
 
     def get_maps(self, nc):
         maps = np.zeros(nc) + self.map
