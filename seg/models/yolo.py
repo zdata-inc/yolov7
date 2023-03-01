@@ -116,8 +116,8 @@ class IDetect(nn.Module):
         for i in range(self.nl):
             x[i] = self.m[i](self.ia[i](x[i]))  # conv
             if bs == 2:
-                #x[i] = self.mtf(x[i][0], x[i][1]) # Merge features using the MTF layer
-                x[i] = x[i][0]
+                x[i] = self.mtf(x[i][0], x[i][1]) # Merge features using the MTF layer
+                #x[i] = x[i][0]
                 _, ny, nx = x[i].shape
                 x[i] = x[i].view(1, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
             elif bs == 1:
@@ -271,7 +271,8 @@ class ISegment(IDetect):
         self.mtf = MTF(self.m[0].out_channels)
 
     def forward(self, x):
-        p = self.proto(x[0])
+        merged_x0 = self.mtf(x[0][0], x[0][1]) # Merge features using the MTF layer
+        p = self.proto(merged_x0)
         x = self.detect(self, x)
         return (x, p) if self.training else (x[0], p) if self.export else (x[0], (x[1], p))
 
