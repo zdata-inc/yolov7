@@ -116,6 +116,7 @@ class IDetect(nn.Module):
         for i in range(self.nl):
             x[i] = self.m[i](self.ia[i](x[i]))  # conv
             if bs == 2:
+                assert False
                 x[i] = self.mtf(x[i][0], x[i][1]) # Merge features using the MTF layer
                 #x[i] = x[i][0]
                 _, ny, nx = x[i].shape
@@ -175,7 +176,7 @@ class Segment(Detect):
 
 
 class MTF(nn.Module):
-    def __init__(self, channel, mode='iade', kernel_size=1):
+    def __init__(self, channel, mode='iade', kernel_size=3):
         super(MTF, self).__init__()
         assert mode in ['i', 'a', 'd', 'e', 'ia', 'id', 'ie', 'iae', 'ide', 'iad', 'iade', 'i2ade', 'iad2e', 'i2ad2e', 'i2d']
         self.mode = mode
@@ -268,15 +269,15 @@ class ISegment(IDetect):
         self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
         self.proto = Proto(ch[0], self.npr, self.nm)  # protos
         self.detect = IDetect.forward
-        self.mtf = MTF(self.m[0].out_channels)
-        self.mtf_proto = MTF(self.m[0].in_channels)
+        #self.mtf = MTF(self.m[0].out_channels)
+        self.mtfs = nn.ModuleList(MTF(module.in_channels) for module in self.m)
 
     def forward(self, x):
         if len(x[0]) == 2:
-            merged_x0 = self.mtf_proto(x[0][0], x[0][1]) # Merge features using the MTF layer
-            p = self.proto(merged_x0.unsqueeze(0))
-        else:
-            p = self.proto(x[0])
+            assert len(x) == len(self.mtfs)
+            for i in range(len(x)):
+                x[i] = self.mtfs[i](x[i][0], x[i][1]).unsqueeze(0)
+        p = self.proto(x[0])
         x = self.detect(self, x)
         return (x, p) if self.training else (x[0], p) if self.export else (x[0], (x[1], p))
 
