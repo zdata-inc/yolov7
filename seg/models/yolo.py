@@ -269,10 +269,14 @@ class ISegment(IDetect):
         self.proto = Proto(ch[0], self.npr, self.nm)  # protos
         self.detect = IDetect.forward
         self.mtf = MTF(self.m[0].out_channels)
+        self.mtf_proto = MTF(self.m[0].in_channels)
 
     def forward(self, x):
-        merged_x0 = self.mtf(x[0][0], x[0][1]) # Merge features using the MTF layer
-        p = self.proto(merged_x0)
+        if len(x[0]) == 2:
+            merged_x0 = self.mtf_proto(x[0][0], x[0][1]) # Merge features using the MTF layer
+            p = self.proto(merged_x0.unsqueeze(0))
+        else:
+            p = self.proto(x[0])
         x = self.detect(self, x)
         return (x, p) if self.training else (x[0], p) if self.export else (x[0], (x[1], p))
 
