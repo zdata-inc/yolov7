@@ -34,6 +34,7 @@ class ComputeLoss:
         self.balance = {3: [4.0, 1.0, 0.4]}.get(m.nl, [4.0, 1.0, 0.25, 0.06, 0.02])  # P3-P7
         self.ssi = list(m.stride).index(16) if autobalance else 0  # stride 16 index
         self.BCEcls, self.BCEobj, self.gr, self.hyp, self.autobalance = BCEcls, BCEobj, 1.0, h, autobalance
+        self.BCEdel = nn.BCEWithLogitsLoss()
         self.na = m.na  # number of anchors
         self.nc = m.nc  # number of classes
         self.nl = m.nl  # number of layers
@@ -47,10 +48,11 @@ class ComputeLoss:
         targets = targets[targets[:, 0] == 0]
         bs, nm, mask_h, mask_w = proto.shape  # batch size, number of masks, mask height, mask width
         lcls = torch.zeros(1, device=self.device)
+        ldel = torch.zeros(1, device=self.device)
         lbox = torch.zeros(1, device=self.device)
         lobj = torch.zeros(1, device=self.device)
         lseg = torch.zeros(1, device=self.device)
-        tcls, tbox, indices, anchors, tidxs, xywhn = self.build_targets(p, targets)  # targets
+        tcls, tbox, indices, anchors, tidxs, xywhn, tdel = self.build_targets(p, targets, dels)  # targets
 
         # Losses
         for i, pi in enumerate(p):  # layer index, layer predictions
@@ -83,6 +85,9 @@ class ComputeLoss:
                     t[range(n), tcls[i]] = self.cp
                     lcls += self.BCEcls(pcls, t)  # BCE
 
+                # Deletion prediction
+                ldel += self.BCEdel(pdel.squeeze(), tdel[i].float())
+
                 # Mask regression
                 if tuple(masks.shape[-2:]) != (mask_h, mask_w):  # downsample
                     masks = F.interpolate(masks[None], (mask_h, mask_w), mode="bilinear", align_corners=False)[0]
@@ -107,9 +112,10 @@ class ComputeLoss:
         lobj *= self.hyp["obj"]
         lcls *= self.hyp["cls"]
         lseg *= self.hyp["box"] / bs
+        #ldel *= self.hyp['del']
 
-        loss = lbox + lobj + lcls + lseg
-        return loss * bs, torch.cat((lbox, lseg, lobj, lcls)).detach()
+        loss = lbox + lobj + lcls + lseg + ldel
+        return loss * bs, torch.cat((lbox, lseg, lobj, lcls, ldel)).detach()
 
     def single_mask_loss(self, gt_mask, pred, proto, xyxy, area):
         # Mask loss for one image
@@ -117,10 +123,10 @@ class ComputeLoss:
         loss = F.binary_cross_entropy_with_logits(pred_mask, gt_mask, reduction="none")
         return (crop(loss, xyxy).mean(dim=(1, 2)) / area).mean()
 
-    def build_targets(self, p, targets):
+    def build_targets(self, p, targets, dels):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
         na, nt = self.na, targets.shape[0]  # number of anchors, targets
-        tcls, tbox, indices, anch, tidxs, xywhn = [], [], [], [], [], []
+        tcls, tbox, indices, anch, tidxs, xywhn, tdel = [], [], [], [], [], [], []
         gain = torch.ones(8, device=self.device)  # normalized to gridspace gain
         ai = torch.arange(na, device=self.device).float().view(na, 1).repeat(1, nt)  # same as .repeat_interleave(nt)
         if self.overlap:
@@ -131,8 +137,10 @@ class ComputeLoss:
                 ti.append(torch.arange(num, device=self.device).float().view(1, num).repeat(na, 1) + 1)  # (na, num)
             ti = torch.cat(ti, 1)  # (na, nt)
         else:
+            # duplicates for the number of anchors
             ti = torch.arange(nt, device=self.device).float().view(1, nt).repeat(na, 1)
         targets = torch.cat((targets.repeat(na, 1, 1), ai[..., None], ti[..., None]), 2)  # append anchor indices
+        dels = dels.repeat(na, 1)
 
         g = 0.5  # bias
         off = torch.tensor(
@@ -157,7 +165,9 @@ class ComputeLoss:
                 r = t[..., 4:6] / anchors[:, None]  # wh ratio
                 j = torch.max(r, 1 / r).max(2)[0] < self.hyp['anchor_t']  # compare
                 # j = wh_iou(anchors, t[:, 4:6]) > model.hyp['iou_t']  # iou(3,n)=wh_iou(anchors(3,2), gwh(n,2))
+
                 t = t[j]  # filter
+                d = dels[j]
 
                 # Offsets
                 gxy = t[:, 2:4]  # grid xy
@@ -166,6 +176,7 @@ class ComputeLoss:
                 l, m = ((gxi % 1 < g) & (gxi > 1)).T
                 j = torch.stack((torch.ones_like(j), j, k, l, m))
                 t = t.repeat((5, 1, 1))[j]
+                d = d.repeat((5, 1))[j]
                 offsets = (torch.zeros_like(gxy)[None] + off[:, None])[j]
             else:
                 t = targets[0]
@@ -182,7 +193,8 @@ class ComputeLoss:
             tbox.append(torch.cat((gxy - gij, gwh), 1))  # box
             anch.append(anchors[a])  # anchors
             tcls.append(c)  # class
+            tdel.append(d.long())
             tidxs.append(tidx)
             xywhn.append(torch.cat((gxy, gwh), 1) / gain[2:6])  # xywh normalized
 
-        return tcls, tbox, indices, anch, tidxs, xywhn
+        return tcls, tbox, indices, anch, tidxs, xywhn, tdel

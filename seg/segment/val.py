@@ -234,7 +234,7 @@ def run(
                                   "mAP50", "mAP50-95)")
     dt = Profile(), Profile(), Profile()
     metrics = Metrics()
-    loss = torch.zeros(4, device=device)
+    loss = torch.zeros(5, device=device)
     jdict, stats = [], []
     # callbacks.run('on_val_start')
     pbar = tqdm(dataloader, desc=s, bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')  # progress bar
@@ -263,7 +263,7 @@ def run(
 
         # Loss
         if compute_loss:
-            loss += compute_loss(train_out, targets, masks, adds, dels)[1]  # box, obj, cls
+            loss += compute_loss(train_out, targets, masks, adds, dels.to(device))[1]  # box, obj, cls
 
         # NMS
         targets[:, 2:] *= torch.tensor((width, height, width, height), device=device)  # to pixels
