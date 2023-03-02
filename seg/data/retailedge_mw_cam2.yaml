@@ -18,6 +18,6 @@ names:
   0: box
   1: can
   2: carrier
-  3: del_box
-  4: del_can
-  5: del_carrier
+  3: bottle
+  4: obstruction
+  5: person

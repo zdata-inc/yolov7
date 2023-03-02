@@ -39,7 +39,8 @@ def create_dataloader(path,
                       prefix='',
                       shuffle=False,
                       mask_downsample_ratio=1,
-                      overlap_mask=False):
+                      overlap_mask=False,
+                      data_dict=None):
     if rect and shuffle:
         LOGGER.warning('WARNING: --rect is incompatible with DataLoader shuffle, setting shuffle=False')
         shuffle = False
@@ -58,7 +59,8 @@ def create_dataloader(path,
             image_weights=image_weights,
             prefix=prefix,
             downsample_ratio=mask_downsample_ratio,
-            overlap=overlap_mask)
+            overlap=overlap_mask,
+            data_dict=data_dict)
 
     dataset = FramePairDataset(dataset)
 
@@ -125,6 +127,7 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
         prefix="",
         downsample_ratio=1,
         overlap=False,
+        data_dict=None,
     ):
         super().__init__(path, img_size, batch_size, augment, hyp, rect, image_weights, cache_images, single_cls,
                          stride, pad, prefix)
@@ -137,27 +140,32 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
             self.id2label = {item['id']: item['name']
                              for item in obj['categories']}
 
+        # Create per-label binary flags to indicate if the object is an
+        # addition
         self.adds = []
         for labels in self.labels:
             add_row = np.array([True if 'add_' in self.id2label[label] else False
                                 for label in labels[:, 0]])
             self.adds.append(add_row)
 
+        # Create per-label binary flags to indicate if the object will be
+        # deleted
         self.dels = []
         for labels in self.labels:
             del_row = np.array([True if 'del_' in self.id2label[label] else False
                                 for label in labels[:, 0]])
             self.dels.append(del_row)
+
+        # Normalize the labels and convert the label IDs assigned by COCO to
+        # reflect what is in the --data configuration json.
+        datadict_label2id = {label: id_ for id_, label in
+                             data_dict['names'].items()}
         def get_raw_obj_id(id_):
             label = self.id2label[id_]
             if 'add_' in label or 'del_' in label:
                 raw_label = re.match(r'.*_(.+)', label)[1]
-                if raw_label not in self.label2id:
-                    self.label2id[raw_label] = len(self.label2id)
-                    self.id2label[len(self.id2label)] = raw_label
-                    assert len(self.id2label) == len(self.label2id)
-                return self.label2id[raw_label]
-            return id_
+                return datadict_label2id[raw_label]
+            return datadict_label2id[label]
         for i in range(len(self.labels)):
             self.labels[i][:, 0] = [get_raw_obj_id(id_) for id_ in self.labels[i][:, 0]]
 

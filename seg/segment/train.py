@@ -222,6 +222,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         shuffle=True,
         mask_downsample_ratio=mask_ratio,
         overlap_mask=overlap,
+        data_dict=data_dict,
     )
     labels = np.concatenate(dataset.labels, 0)
     mlc = int(labels[:, 0].max())  # max label class
@@ -243,7 +244,9 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                                        pad=0.5,
                                        mask_downsample_ratio=mask_ratio,
                                        overlap_mask=overlap,
+                                       data_dict=data_dict,
                                        prefix=colorstr('val: '))[0]
+
 
         if not resume:
             if not opt.noautoanchor:
