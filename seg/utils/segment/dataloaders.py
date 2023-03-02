@@ -4,7 +4,9 @@ Dataloaders
 """
 
 import copy
+import json
 import os
+from pathlib import Path
 import random
 import re
 
@@ -128,6 +130,36 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
                          stride, pad, prefix)
         self.downsample_ratio = downsample_ratio
         self.overlap = overlap
+        with open(Path(path).parent / 'categories.json') as f:
+            obj = json.loads(f.read())
+            self.label2id = {item['name']: item['id']
+                             for item in obj['categories']}
+            self.id2label = {item['id']: item['name']
+                             for item in obj['categories']}
+
+        self.adds = []
+        for labels in self.labels:
+            add_row = np.array([True if 'add_' in self.id2label[label] else False
+                                for label in labels[:, 0]])
+            self.adds.append(add_row)
+
+        self.dels = []
+        for labels in self.labels:
+            del_row = np.array([True if 'del_' in self.id2label[label] else False
+                                for label in labels[:, 0]])
+            self.dels.append(del_row)
+        def get_raw_obj_id(id_):
+            label = self.id2label[id_]
+            if 'add_' in label or 'del_' in label:
+                raw_label = re.match(r'.*_(.+)', label)[1]
+                if raw_label not in self.label2id:
+                    self.label2id[raw_label] = len(self.label2id)
+                    self.id2label[len(self.id2label)] = raw_label
+                    assert len(self.id2label) == len(self.label2id)
+                return self.label2id[raw_label]
+            return id_
+        for i in range(len(self.labels)):
+            self.labels[i][:, 0] = [get_raw_obj_id(id_) for id_ in self.labels[i][:, 0]]
 
     def __getitem__(self, index):
         index = self.indices[index]  # linear, shuffled, or image_weights
