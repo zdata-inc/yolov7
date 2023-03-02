@@ -140,34 +140,18 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
             self.id2label = {item['id']: item['name']
                              for item in obj['categories']}
 
-        # Create per-label binary flags to indicate if the object is an
-        # addition
-        self.adds = []
-        for labels in self.labels:
-            add_row = np.array([True if 'add_' in self.id2label[label] else False
-                                for label in labels[:, 0]])
-            self.adds.append(add_row)
-
-        # Create per-label binary flags to indicate if the object will be
-        # deleted
-        self.dels = []
-        for labels in self.labels:
-            del_row = np.array([True if 'del_' in self.id2label[label] else False
-                                for label in labels[:, 0]])
-            self.dels.append(del_row)
 
         # Normalize the labels and convert the label IDs assigned by COCO to
         # reflect what is in the --data configuration json.
-        datadict_label2id = {label: id_ for id_, label in
-                             data_dict['names'].items()}
-        def get_raw_obj_id(id_):
-            label = self.id2label[id_]
-            if 'add_' in label or 'del_' in label:
-                raw_label = re.match(r'.*_(.+)', label)[1]
-                return datadict_label2id[raw_label]
-            return datadict_label2id[label]
-        for i in range(len(self.labels)):
-            self.labels[i][:, 0] = [get_raw_obj_id(id_) for id_ in self.labels[i][:, 0]]
+        self.datadict_label2id = {label: id_ for id_, label in
+                                  data_dict['names'].items()}
+
+    def get_raw_obj_id(self, id_):
+        label = self.id2label[id_]
+        if 'add_' in label or 'del_' in label:
+            raw_label = re.match(r'.*_(.+)', label)[1]
+            return self.datadict_label2id[raw_label]
+        return self.datadict_label2id[label]
 
     def __getitem__(self, index):
         index = self.indices[index]  # linear, shuffled, or image_weights
@@ -271,7 +255,20 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
         img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
         img = np.ascontiguousarray(img)
 
-        return (torch.from_numpy(img), labels_out, self.im_files[index], shapes, masks)
+        # Create per-label binary flags to indicate if the object is an
+        # addition
+        adds = torch.tensor([True if 'add_' in self.id2label[label.item()] else False
+                             for label in labels_out[:, 1]])
+
+        # Create per-label binary flags to indicate if the object will be
+        # deleted
+        dels = torch.tensor([True if 'del_' in self.id2label[label.item()] else False
+                             for label in labels_out[:, 1]])
+        # Normalize labels
+        labels_out[:, 1] = torch.tensor([self.get_raw_obj_id(id_.item()) for id_ in labels_out[:, 1]])
+
+        return (torch.from_numpy(img), labels_out, self.im_files[index],
+                shapes, masks, adds, dels)
 
     def load_mosaic(self, index):
         # YOLOv5 4-mosaic loader. Loads 1 image + 3 random images into a 4-image mosaic
@@ -333,11 +330,11 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
 
     @staticmethod
     def collate_fn(batch):
-        img, label, path, shapes, masks = zip(*batch)  # transposed
+        img, label, path, shapes, masks, adds, dels = zip(*batch)  # transposed
         batched_masks = torch.cat(masks, 0)
         for i, l in enumerate(label):
             l[:, 0] = i  # add target image index for build_targets()
-        return torch.stack(img, 0), torch.cat(label, 0), path, shapes, batched_masks
+        return torch.stack(img, 0), torch.cat(label, 0), path, shapes, batched_masks, torch.cat(adds, 0), torch.cat(dels, 0)
 
 
 def polygon2mask(img_size, polygons, color=1, downsample_ratio=1):

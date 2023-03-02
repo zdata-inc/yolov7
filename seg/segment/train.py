@@ -225,8 +225,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         data_dict=data_dict,
     )
     labels = np.concatenate(dataset.labels, 0)
-    mlc = int(labels[:, 0].max())  # max label class
-    assert mlc < nc, f'Label class {mlc} exceeds nc={nc} in {data}. Possible class labels are 0-{nc - 1}'
+    #mlc = int(labels[:, 0].max())  # max label class
+    #assert mlc < nc, f'Label class {mlc} exceeds nc={nc} in {data}. Possible class labels are 0-{nc - 1}'
 
     # Process 0
     if RANK in {-1, 0}:
@@ -312,7 +312,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         if RANK in {-1, 0}:
             pbar = tqdm(pbar, total=nb, bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')  # progress bar
         optimizer.zero_grad()
-        for i, (imgs, targets, paths, _, masks) in pbar:  # batch ------------------------------------------------------
+        for i, (imgs, targets, paths, _, masks, adds, dels) in pbar:  # batch ------------------------------------------------------
             first_img_ixs = targets[:, 0] == 0
             targets = targets[first_img_ixs]
             masks = masks[first_img_ixs]

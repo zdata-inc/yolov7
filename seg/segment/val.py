@@ -238,7 +238,7 @@ def run(
     jdict, stats = [], []
     # callbacks.run('on_val_start')
     pbar = tqdm(dataloader, desc=s, bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')  # progress bar
-    for batch_i, (im, targets, paths, shapes, masks) in enumerate(pbar):
+    for batch_i, (im, targets, paths, shapes, masks, adds, dels) in enumerate(pbar):
         # callbacks.run('on_val_batch_start')
         first_img_ixs = targets[:, 0] == 0
         targets = targets[first_img_ixs]
