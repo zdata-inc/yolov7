@@ -265,7 +265,7 @@ class ISegment(IDetect):
         super().__init__(nc, anchors, ch, inplace)
         self.nm = nm  # number of masks
         self.npr = npr  # number of protos
-        self.no = 5 + nc + self.nm  # number of outputs per anchor
+        self.no = 5 + nc + self.nm + 1 # number of outputs per anchor
         self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
         self.proto = Proto(ch[0], self.npr, self.nm)  # protos
         self.detect = IDetect.forward

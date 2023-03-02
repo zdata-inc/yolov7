@@ -41,7 +41,7 @@ class ComputeLoss:
         self.anchors = m.anchors
         self.device = device
 
-    def __call__(self, preds, targets, masks):  # predictions, targets, model
+    def __call__(self, preds, targets, masks, adds, dels):  # predictions, targets, model
         p, proto = preds
         #p = [layer.unsqueeze(0) for layer in p]
         targets = targets[targets[:, 0] == 0]
@@ -59,7 +59,7 @@ class ComputeLoss:
 
             n = b.shape[0]  # number of targets
             if n:
-                pxy, pwh, _, pcls, pmask = pi[b, a, gj, gi].split((2, 2, 1, self.nc, nm), 1)  # subset of predictions
+                pxy, pwh, _, pcls, pmask, pdel = pi[b, a, gj, gi].split((2, 2, 1, self.nc, nm, 1), 1)  # subset of predictions
 
                 # Box regression
                 pxy = pxy.sigmoid() * 2 - 0.5

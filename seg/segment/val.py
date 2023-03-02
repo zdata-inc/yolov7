@@ -243,6 +243,7 @@ def run(
         first_img_ixs = targets[:, 0] == 0
         targets = targets[first_img_ixs]
         masks = masks[first_img_ixs]
+        dels = dels[first_img_ixs]
         im = im.squeeze()
         #paths = paths[0]
         #shapes = shapes[0]
@@ -262,7 +263,7 @@ def run(
 
         # Loss
         if compute_loss:
-            loss += compute_loss(train_out, targets, masks)[1]  # box, obj, cls
+            loss += compute_loss(train_out, targets, masks, adds, dels)[1]  # box, obj, cls
 
         # NMS
         targets[:, 2:] *= torch.tensor((width, height, width, height), device=device)  # to pixels
