@@ -427,7 +427,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
 
             class_results = {}
             for i, name in names.items():
-                keys = [f'{k}/{name}' for k in KEYS[4:]]
+                keys = [f'{k}/{name}' for k in KEYS[5:]]
                 class_results.update(dict(zip(keys,
                                      metrics.class_result(i))))
             logger.log_metrics(class_results, epoch)

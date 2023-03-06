@@ -185,6 +185,7 @@ KEYS = [
     "train/seg_loss",  # train loss
     "train/obj_loss",
     "train/cls_loss",
+    "train/del_loss",
     "metrics/precision(B)",
     "metrics/recall(B)",
     "metrics/mAP_0.5(B)",
@@ -197,6 +198,7 @@ KEYS = [
     "val/seg_loss",  # val loss
     "val/obj_loss",
     "val/cls_loss",
+    "val/del_loss",
     "x/lr0",
     "x/lr1",
     "x/lr2",]
