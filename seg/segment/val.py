@@ -87,7 +87,8 @@ def save_one_json(predn, jdict, path, class_map, pred_masks):
             'segmentation': rles[i]})
 
 
-def process_batch(detections, labels, iouv, pred_masks=None, gt_masks=None, overlap=False, masks=False):
+def process_batch(detections, labels, iouv, pred_masks=None, gt_masks=None,
+                  overlap=False, masks=False, dels=None):
     """
     Return correct prediction matrix
     Arguments:
@@ -315,8 +316,10 @@ def run(
                 tbox = xywh2xyxy(labels[:, 1:5])  # target boxes
                 scale_coords(im[si].shape[1:], tbox, shape, shapes[si][1])  # native-space labels
                 labelsn = torch.cat((labels[:, 0:1], tbox), 1)  # native-space labels
-                correct_bboxes = process_batch(predn, labelsn, iouv)
-                correct_masks = process_batch(predn, labelsn, iouv, pred_masks, gt_masks, overlap=overlap, masks=True)
+                correct_bboxes = process_batch(predn, labelsn, iouv, dels=dels)
+                correct_masks = process_batch(predn, labelsn, iouv, pred_masks,
+                                              gt_masks, overlap=overlap,
+                                              masks=True, dels=dels)
                 if plots:
                     confusion_matrix.process_batch(predn, labelsn)
             stats.append((correct_masks, correct_bboxes, pred[:, 4], pred[:, 5], labels[:, 0]))  # (conf, pcls, tcls)
