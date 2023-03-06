@@ -303,7 +303,10 @@ def run(
             midx = [si] if overlap else targets[:, 0] == si
             gt_masks = masks[midx]
             proto_out = train_out[1][si]
-            pred_masks = process(proto_out, pred[:, 6:], pred[:, :4], shape=im[si].shape[1:])
+            # TODO Remove magic numbers. I added the -1 at teh end of the first
+            # slice so that the pred column that is reserved for dels is not
+            # used.
+            pred_masks = process(proto_out, pred[:, 6:-1], pred[:, :4], shape=im[si].shape[1:])
 
             # Predictions
             if single_cls:
