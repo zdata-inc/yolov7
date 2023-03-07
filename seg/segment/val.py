@@ -122,7 +122,22 @@ def process_batch(detections, labels, iouv, pred_masks=None, gt_masks=None,
                 # matches = matches[matches[:, 2].argsort()[::-1]]
                 matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
             correct[matches[:, 1].astype(int), i] = True
-    return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
+
+    correct_iouv_del = np.zeros((detections.shape[0], iouv.shape[0])).astype(bool)
+    correct_del = dels[:, None] == (detections[:, -1] > 0)
+    for i in range(len(iouv)):
+        x = torch.where((iou >= iouv[i]) & correct_del)
+        if x[0].shape[0]:
+            matches = torch.cat((torch.stack(x, 1), iou[x[0], x[1]][:, None]), 1).cpu().numpy()  # [label, detect, iou]
+            if x[0].shape[0] > 1:
+                matches = matches[matches[:, 2].argsort()[::-1]]
+                matches = matches[np.unique(matches[:, 1], return_index=True)[1]]
+                # matches = matches[matches[:, 2].argsort()[::-1]]
+                matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
+            correct_iouv_del[matches[:, 1].astype(int), i] = True
+
+    return (torch.tensor(correct, dtype=torch.bool, device=iouv.device),
+            torch.tensor(correct_iouv_del, dtype=torch.bool, device=iouv.device))
 
 
 @smart_inference_mode()
@@ -244,7 +259,7 @@ def run(
         first_img_ixs = targets[:, 0] == 0
         targets = targets[first_img_ixs]
         masks = masks[first_img_ixs]
-        dels = dels[first_img_ixs]
+        dels = dels[first_img_ixs].to(device)
         im = im.squeeze()
         #paths = paths[0]
         #shapes = shapes[0]
@@ -264,7 +279,7 @@ def run(
 
         # Loss
         if compute_loss:
-            loss += compute_loss(train_out, targets, masks, adds, dels.to(device))[1]  # box, obj, cls
+            loss += compute_loss(train_out, targets, masks, adds, dels)[1]  # box, obj, cls
 
         # NMS
         targets[:, 2:] *= torch.tensor((width, height, width, height), device=device)  # to pixels
@@ -319,8 +334,8 @@ def run(
                 tbox = xywh2xyxy(labels[:, 1:5])  # target boxes
                 scale_coords(im[si].shape[1:], tbox, shape, shapes[si][1])  # native-space labels
                 labelsn = torch.cat((labels[:, 0:1], tbox), 1)  # native-space labels
-                correct_bboxes = process_batch(predn, labelsn, iouv, dels=dels)
-                correct_masks = process_batch(predn, labelsn, iouv, pred_masks,
+                correct_bboxes, correct_bboxs_dels = process_batch(predn, labelsn, iouv, dels=dels)
+                correct_masks, correct_masks_dels = process_batch(predn, labelsn, iouv, pred_masks,
                                               gt_masks, overlap=overlap,
                                               masks=True, dels=dels)
                 if plots:
