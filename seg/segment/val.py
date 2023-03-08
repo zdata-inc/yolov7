@@ -154,7 +154,7 @@ def run(
         workers=8,  # max dataloader workers (per RANK in DDP mode)
         single_cls=False,  # treat as single-class dataset
         augment=False,  # augmented inference
-        verbose=False,  # verbose output
+        verbose=True,  # verbose output
         save_txt=False,  # save results to *.txt
         save_hybrid=False,  # save label+prediction hybrid results to *.txt
         save_conf=False,  # save confidences in --save-txt labels
@@ -250,8 +250,10 @@ def run(
                                   "mAP50", "mAP50-95)")
     dt = Profile(), Profile(), Profile()
     metrics = Metrics()
+    del_metrics = Metrics()
     loss = torch.zeros(5, device=device)
     jdict, stats = [], []
+    del_stats = []
     # callbacks.run('on_val_start')
     pbar = tqdm(dataloader, desc=s, bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')  # progress bar
     for batch_i, (im, targets, paths, shapes, masks, adds, dels) in enumerate(pbar):
@@ -305,11 +307,15 @@ def run(
             path, shape = Path(paths[si]), shapes[si][0]
             correct_masks = torch.zeros(npr, niou, dtype=torch.bool, device=device)  # init
             correct_bboxes = torch.zeros(npr, niou, dtype=torch.bool, device=device)  # init
+            correct_masks_dels = torch.zeros(npr, niou, dtype=torch.bool, device=device)  # init
+            correct_bboxes_dels = torch.zeros(npr, niou, dtype=torch.bool, device=device)  # init
             seen += 1
 
             if npr == 0:
                 if nl:
                     stats.append((correct_masks, correct_bboxes, *torch.zeros((2, 0), device=device), labels[:, 0]))
+                    del_stats.append((correct_masks_dels, correct_bboxes_dels,
+                                      *torch.zeros((2, 0), device=device), dels*1))
                     if plots:
                         confusion_matrix.process_batch(detections=None, labels=labels[:, 0])
                 continue
@@ -334,13 +340,15 @@ def run(
                 tbox = xywh2xyxy(labels[:, 1:5])  # target boxes
                 scale_coords(im[si].shape[1:], tbox, shape, shapes[si][1])  # native-space labels
                 labelsn = torch.cat((labels[:, 0:1], tbox), 1)  # native-space labels
-                correct_bboxes, correct_bboxs_dels = process_batch(predn, labelsn, iouv, dels=dels)
+                correct_bboxes, correct_bboxes_dels = process_batch(predn, labelsn, iouv, dels=dels)
                 correct_masks, correct_masks_dels = process_batch(predn, labelsn, iouv, pred_masks,
                                               gt_masks, overlap=overlap,
                                               masks=True, dels=dels)
                 if plots:
                     confusion_matrix.process_batch(predn, labelsn)
             stats.append((correct_masks, correct_bboxes, pred[:, 4], pred[:, 5], labels[:, 0]))  # (conf, pcls, tcls)
+            del_stats.append((correct_masks_dels, correct_bboxes_dels,
+                              torch.sigmoid(predn[:, -1]), (predn[:, -1] > 0)*1, dels*1))
 
             pred_masks = torch.as_tensor(pred_masks, dtype=torch.uint8)
             if plots and batch_i < 3:
@@ -367,10 +375,19 @@ def run(
 
     # Compute metrics
     stats = [torch.cat(x, 0).cpu().numpy() for x in zip(*stats)]  # to numpy
+    del_stats = [torch.cat(x, 0).cpu().numpy() for x in zip(*del_stats)]
     if len(stats) and stats[0].any():
         results = ap_per_class_box_and_mask(*stats, plot=plots, save_dir=save_dir, names=names)
         metrics.update(results)
+    del_names ={0: 'nodel', 1: 'del'}
+    if len(del_stats) and del_stats[0].any():
+        del_results = ap_per_class_box_and_mask(*del_stats, plot=plots,
+                                                save_dir=save_dir,
+                                                names=del_names)
+        del_metrics.update(del_results)
+
     nt = np.bincount(stats[4].astype(int), minlength=nc)  # number of targets per class
+    del_nt = np.bincount(del_stats[4].astype(int), minlength=2)
 
     # Print results
     pf = '%22s' + '%11i' * 2 + '%11.3g' * 8  # print format
@@ -382,6 +399,9 @@ def run(
     if (verbose or (nc < 50 and not training)) and nc > 1 and len(stats):
         for i, c in enumerate(metrics.ap_class_index):
             LOGGER.info(pf % (names[c], seen, nt[c], *metrics.class_result(i)))
+
+        for i, c in enumerate(del_metrics.ap_class_index):
+            LOGGER.info(pf % (del_names[c], seen, del_nt[c], *del_metrics.class_result(i)))
 
     # Print speeds
     t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
