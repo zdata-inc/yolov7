@@ -62,6 +62,8 @@ from yolov7.seg.utils.segment.plots import plot_images_and_masks, plot_results_w
 from yolov7.seg.utils.torch_utils import (EarlyStopping, ModelEMA, de_parallel, select_device, smart_DDP, smart_optimizer,
                                smart_resume, torch_distributed_zero_first)
 
+from yolov7.seg.segment.val import DEL_NAMES
+
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv('RANK', -1))
 WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
@@ -131,6 +133,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     train_path, val_path = data_dict['train'], data_dict['val']
     nc = 1 if single_cls else int(data_dict['nc'])  # number of classes
     names = {0: 'item'} if single_cls and len(data_dict['names']) != 1 else data_dict['names']  # class names
+    del_names = DEL_NAMES
     is_coco = isinstance(val_path, str) and val_path.endswith('coco/val2017.txt')  # COCO dataset
 
     # Model
@@ -399,7 +402,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'names', 'stride', 'class_weights'])
             final_epoch = (epoch + 1 == epochs) or stopper.possible_stop
             if not noval or final_epoch:  # Calculate mAP
-                results, maps, _, metrics = validate.run(data_dict,
+                results, maps, _, metrics, del_metrics = validate.run(data_dict,
                                                          batch_size=batch_size // WORLD_SIZE,
                                                          imgsz=imgsz,
                                                          half=amp,
@@ -430,6 +433,10 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                 keys = [f'{k}/{name}' for k in KEYS[5:]]
                 class_results.update(dict(zip(keys,
                                      metrics.class_result(i))))
+            for i, name in del_names.items():
+                keys = [f'{k}/{name}' for k in KEYS[5:]]
+                class_results.update(dict(zip(keys,
+                                     del_metrics.class_result(i))))
             logger.log_metrics(class_results, epoch)
 
             if plots:

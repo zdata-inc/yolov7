@@ -52,6 +52,8 @@ from yolov7.seg.utils.segment.metrics import Metrics, ap_per_class_box_and_mask
 from yolov7.seg.utils.segment.plots import plot_images_and_masks
 from yolov7.seg.utils.torch_utils import de_parallel, select_device, smart_inference_mode
 
+DEL_NAMES = {0: 'nodel', 1: 'del'}
+
 
 def save_one_txt(predn, save_conf, shape, file):
     # Save one txt result
@@ -243,6 +245,7 @@ def run(
     seen = 0
     confusion_matrix = ConfusionMatrix(nc=nc)
     names = model.names if hasattr(model, 'names') else model.module.names  # get class names
+    del_names = DEL_NAMES
     if isinstance(names, (list, tuple)):  # old format
         names = dict(enumerate(names))
     class_map = coco80_to_coco91_class() if is_coco else list(range(1000))
@@ -379,7 +382,6 @@ def run(
     if len(stats) and stats[0].any():
         results = ap_per_class_box_and_mask(*stats, plot=plots, save_dir=save_dir, names=names)
         metrics.update(results)
-    del_names ={0: 'nodel', 1: 'del'}
     if len(del_stats) and del_stats[0].any():
         del_results = ap_per_class_box_and_mask(*del_stats, plot=plots,
                                                 save_dir=save_dir,
@@ -449,8 +451,7 @@ def run(
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
         LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}{s}")
     final_metric = mp_bbox, mr_bbox, map50_bbox, map_bbox, mp_mask, mr_mask, map50_mask, map_mask
-    return (*final_metric, *(loss.cpu() / len(dataloader)).tolist()), metrics.get_maps(nc), t, metrics
-
+    return (*final_metric, *(loss.cpu() / len(dataloader)).tolist()), metrics.get_maps(nc), t, metrics, del_metrics
 
 def parse_opt():
     parser = argparse.ArgumentParser()
