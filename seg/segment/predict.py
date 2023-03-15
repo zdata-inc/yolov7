@@ -179,7 +179,7 @@ def run(
                                                     reversed(masks)):
                     xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
                     if save_txt:  # Write to file
-                        save_line = (cls, *xywh, conf) if save_conf else (cls, *xywh)
+                        save_line = (cls.item(), *xywh, conf.item()) if save_conf else (cls.item(), *xywh)
                         with open(f'{txt_path}.txt', 'a') as f:
                             f.write(('%g ' * len(save_line)).rstrip() % line + '\n')
 
@@ -193,10 +193,10 @@ def run(
                     if return_masks:
                         line = (cls.item(), *xywh, mask == 1, conf.item()) if save_conf else (cls.item(), *xywh, mask == 1)  # label format
                     else:
-                        line = (cls.item(), *xywh, conf) if save_conf else (cls.item(), *xywh)
+                        line = (cls.item(), *xywh, conf.item()) if save_conf else (cls.item(), *xywh)
                     labels.append(line)
                     crop_mask, _ = save_one_box(xyxy, scaled_mask, save=False, BGR=False)
-                    crop_img, _ = save_one_box(xyxy, im0, BGR=True, save=False)
+                    crop_img, _ = save_one_box(xyxy, im0, BGR=True, save=Fcd alse)
                     # Set the background to white based on the mask.
                     white_background = (1 - crop_mask)*255
                     masked = crop_img*crop_mask
