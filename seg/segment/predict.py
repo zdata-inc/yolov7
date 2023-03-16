@@ -43,8 +43,9 @@ ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
 from models.common import DetectMultiBackend
 from yolov7.seg.utils.dataloaders import IMG_FORMATS, VID_FORMATS, LoadImages, LoadStreams
-from yolov7.seg.utils.general import (LOGGER, Profile, check_file, check_img_size, check_imshow, check_requirements, colorstr, cv2,
-                           increment_path, non_max_suppression, print_args, scale_coords, strip_optimizer, xyxy2xywh)
+from yolov7.seg.utils.general import (LOGGER, Profile, check_file, check_img_size, check_imshow, check_requirements,
+                                      colorstr, cv2, increment_path, non_max_suppression, print_args, scale_coords,
+                                      strip_optimizer, xyxy2xywh)
 from yolov7.seg.utils.plots import Annotator, colors, save_one_box
 from yolov7.seg.utils.segment.general import process_mask, scale_masks
 from yolov7.seg.utils.segment.plots import plot_masks
@@ -196,7 +197,7 @@ def run(
                         line = (cls.item(), *xywh, conf.item()) if save_conf else (cls.item(), *xywh)
                     labels.append(line)
                     crop_mask, _ = save_one_box(xyxy, scaled_mask, save=False, BGR=False)
-                    crop_img, _ = save_one_box(xyxy, im0, BGR=True, save=Fcd alse)
+                    crop_img, _ = save_one_box(xyxy, im0, BGR=True, save=False)
                     # Set the background to white based on the mask.
                     white_background = (1 - crop_mask)*255
                     masked = crop_img*crop_mask
@@ -219,6 +220,8 @@ def run(
                     crop_image = cv2.cvtColor(crop_image, cv2.COLOR_BGR2RGB) # convert image proper RGB color
                     crop_images.append(crop_image)
 
+            else:
+                return [], [], []
 
             # Stream results
             im0 = annotator.result()
