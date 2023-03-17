@@ -355,7 +355,7 @@ def run(
 
             pred_masks = torch.as_tensor(pred_masks, dtype=torch.uint8)
             if plots and batch_i < 3:
-                plot_masks.append(pred_masks[:15].cpu())  # filter top 15 to plot
+                plot_masks.append(pred_masks.cpu())  # filter top 15 to plot
 
             # Save/log
             if save_txt:
@@ -367,12 +367,15 @@ def run(
             # callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
 
         # Plot images
-        if plots and batch_i < 3:
+        #if plots and batch_i < 3:
+        if plots:
             if len(plot_masks):
                 plot_masks = torch.cat(plot_masks, dim=0)
-            plot_images_and_masks(im, targets, masks, paths, save_dir / f'val_batch{batch_i}_labels.jpg', names)
-            plot_images_and_masks(im, output_to_target(out, max_det=15), plot_masks, paths,
-                                  save_dir / f'val_batch{batch_i}_pred.jpg', names)  # pred
+            plot_images_and_masks(im, targets, masks, paths, save_dir /
+                                  f'val_batch{batch_i}_labels.jpg', names, dels)
+            plot_images_and_masks(im, output_to_target(out), plot_masks, paths,
+                                  save_dir / f'val_batch{batch_i}_pred.jpg',
+                                  names, correct_masks_dels[:, 0])  # pred
 
         # callbacks.run('on_val_batch_end')
 

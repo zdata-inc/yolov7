@@ -52,7 +52,8 @@ def plot_masks(img, masks, colors, alpha=0.5):
 
 
 @threaded
-def plot_images_and_masks(images, targets, masks, paths=None, fname='images.jpg', names=None):
+def plot_images_and_masks(images, targets, masks, paths=None,
+                          fname='images.jpg', names=None, dels=None):
     # Plot image grid with labels
     if isinstance(images, torch.Tensor):
         images = images.cpu().float().numpy()
@@ -94,7 +95,10 @@ def plot_images_and_masks(images, targets, masks, paths=None, fname='images.jpg'
         if paths:
             annotator.text((x + 5, y + 5 + h), text=Path(paths[i]).name[:40], txt_color=(220, 220, 220))  # filenames
         if len(targets) > 0:
-            idx = targets[:, 0] == i
+            if dels is not None:
+                idx = (targets[:, 0] == i) & dels.cpu().numpy()
+            else:
+                idx = (targets[:, 0] == i)
             ti = targets[idx]  # image targets
 
             boxes = xywh2xyxy(ti[:, 2:6]).T
