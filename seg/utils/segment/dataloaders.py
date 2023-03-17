@@ -3,6 +3,7 @@
 Dataloaders
 """
 
+import collections
 import copy
 import json
 import os
@@ -93,12 +94,18 @@ class FramePairDataset(Dataset):
             return item_id
 
         self.org_dataset = org_dataset
+        camera_items = collections.defaultdict(list)
         sorted_items = sorted(self.org_dataset, key=sort_key)
-        sorted_items2 = copy.deepcopy(sorted_items)
-        for item in sorted_items2:
-            # Indicate that this is actually the second example.
-            item[1][:, 0] = 1
-        self.paired_items = list(zip(sorted_items, sorted_items2[1:]))
+        for item in sorted_items:
+            cam_id = re.match(r'cam(\d+)-.*', Path(item[2]).name)[1]
+            camera_items[cam_id].append(item)
+        self.paired_items = []
+        for cam_id in camera_items:
+            items_copy = copy.deepcopy(camera_items[cam_id])
+            for item in items_copy:
+                # Indicate that this is actually the second example.
+                item[1][:, 0] = 1
+            self.paired_items.extend(list(zip(camera_items[cam_id], items_copy[1:])))
         self.labels = self.org_dataset.labels
         self.shapes = self.org_dataset.shapes
 
