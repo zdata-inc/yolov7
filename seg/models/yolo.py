@@ -276,8 +276,10 @@ class ISegment(IDetect):
         if len(x[0]) == 2:
             assert len(x) == len(self.mtfs)
             for i in range(len(x)):
-                #x[i] = self.mtfs[i](x[i][0], x[i][1]).unsqueeze(0)
-                x[i] = x[i][0].unsqueeze(0)
+                x[i] = self.mtfs[i](x[i][0], x[i][1]).unsqueeze(0)
+                # NOTE Below line if we want to ignore the second image and
+                # take features only from the first image, no MTF
+                #x[i] = x[i][0].unsqueeze(0)
         p = self.proto(x[0])
         x = self.detect(self, x)
         return (x, p) if self.training else (x[0], p) if self.export else (x[0], (x[1], p))
