@@ -112,24 +112,12 @@ class IDetect(nn.Module):
 
     def forward(self, x):
         z = []  # inference output
-        bs = x[0].shape[0]
         for i in range(self.nl):
             x[i] = self.m[i](self.ia[i](x[i]))  # conv
-            if bs == 2:
-                assert False
-                x[i] = self.mtf(x[i][0], x[i][1]) # Merge features using the MTF layer
-                #x[i] = x[i][0]
-                _, ny, nx = x[i].shape
-                x[i] = x[i].view(1, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
-            elif bs == 1:
-                bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
-                x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
-            else:
-                raise NotImplementedError()
+            bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
+            x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
 
             if not self.training:  # inference
-                #if bs == 2:
-                #    x[i] = x[i].unsqueeze(0)
                 if self.dynamic or self.grid[i].shape[2:4] != x[i].shape[2:4]:
                     self.grid[i], self.anchor_grid[i] = self._make_grid(nx, ny, i)
 
@@ -176,6 +164,11 @@ class Segment(Detect):
 
 
 class MTF(nn.Module):
+    """ A Merge Temporal Features layer that fuses features from two images and
+    is useful for change detection.
+
+    The original implementation can be found at https://github.com/DoctorKey/C-3PO.
+    """
     def __init__(self, channel, mode='iade', kernel_size=3):
         super(MTF, self).__init__()
         assert mode in ['i', 'a', 'd', 'e', 'ia', 'id', 'ie', 'iae', 'ide', 'iad', 'iade', 'i2ade', 'iad2e', 'i2ad2e', 'i2d']
@@ -265,20 +258,29 @@ class ISegment(IDetect):
         super().__init__(nc, anchors, ch, inplace)
         self.nm = nm  # number of masks
         self.npr = npr  # number of protos
-        self.no = 5 + nc + self.nm + 1 # number of outputs per anchor
+        # number of outputs per anchor. This includes bbox information, number
+        # of classes and number of masks. The +1 is to account for the deletion
+        # probability.
+        self.no = 5 + nc + self.nm + 1
         self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
         self.proto = Proto(ch[0], self.npr, self.nm)  # protos
         self.detect = IDetect.forward
-        #self.mtf = MTF(self.m[0].out_channels)
+        # There is one Merge Temporal Feature layer for each layer in the
+        # pyramid.
         self.mtfs = nn.ModuleList(MTF(module.in_channels) for module in self.m)
 
     def forward(self, x):
+        # The below conditional should always pass when the model is actually
+        # training or doing inference. The only reason
+        # it isn't sometimes is when some checks are being run for automatic
+        # mixed precision, in which case teh batch size is just 1.
         if len(x[0]) == 2:
             assert len(x) == len(self.mtfs)
             for i in range(len(x)):
                 x[i] = self.mtfs[i](x[i][0], x[i][1]).unsqueeze(0)
                 # NOTE Below line if we want to ignore the second image and
-                # take features only from the first image, no MTF
+                # take features only from the first image, no MTF. Useful
+                # as a baseline.
                 #x[i] = x[i][0].unsqueeze(0)
         p = self.proto(x[0])
         x = self.detect(self, x)

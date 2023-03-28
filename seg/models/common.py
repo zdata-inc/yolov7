@@ -723,6 +723,8 @@ class AutoShape(nn.Module):
                 for i in range(n):
                     scale_coords(shape1, y[i][:, :4], shape0[i])
 
+            # This is to ignore the rightmost column that contains deletion
+            # information.
             y = [y_elem[:, :-1] for y_elem in y]
 
             return Detections(ims, y, files, dt, self.names, x.shape)

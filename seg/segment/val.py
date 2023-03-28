@@ -125,6 +125,9 @@ def process_batch(detections, labels, iouv, pred_masks=None, gt_masks=None,
                 matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
             correct[matches[:, 1].astype(int), i] = True
 
+    # Here we create a correct_iouv_del matrix that indicates which detections
+    # had their deletion status correctly predicted, for varying IOU
+    # thresholds.
     correct_iouv_del = np.zeros((detections.shape[0], iouv.shape[0])).astype(bool)
     correct_del = dels[:, None] == (detections[:, -1] > 0)
     for i in range(len(iouv)):
@@ -138,6 +141,9 @@ def process_batch(detections, labels, iouv, pred_masks=None, gt_masks=None,
                 matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
             correct_iouv_del[matches[:, 1].astype(int), i] = True
 
+    # Here we create a pred_iouv_del matrix that indicates which detections
+    # were predicted to be deletions, for varying IOU
+    # thresholds.
     pred_iouv_del = np.zeros((detections.shape[0], iouv.shape[0])).astype(bool)
     pred_del = (detections[:, -1] > 0)
     for i in range(len(iouv)):
@@ -271,6 +277,8 @@ def run(
     dt = Profile(), Profile(), Profile()
     metrics = Metrics()
     del_metrics = Metrics()
+    # TODO magic numbers should be removed. This was changed from 4 to 5 to
+    # account for del loss.
     loss = torch.zeros(5, device=device)
     jdict, stats = [], []
     del_stats = []
@@ -278,13 +286,15 @@ def run(
     pbar = tqdm(dataloader, desc=s, bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')  # progress bar
     for batch_i, (im, targets, paths, shapes, masks, adds, dels) in enumerate(pbar):
         # callbacks.run('on_val_batch_start')
+        # We frame all labels / losses in terms of the first image, so here
+        # we filter targets, masks, dels for the first image. Features are
+        # merged in from the second image, but we only predict objects as
+        # labeled for the first image as well as deletions.
         first_img_ixs = targets[:, 0] == 0
         targets = targets[first_img_ixs]
         masks = masks[first_img_ixs]
         dels = dels[first_img_ixs].to(device)
         im = im.squeeze()
-        #paths = paths[0]
-        #shapes = shapes[0]
         with dt[0]:
             if cuda:
                 im = im.to(device, non_blocking=True)

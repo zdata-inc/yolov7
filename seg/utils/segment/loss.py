@@ -44,7 +44,7 @@ class ComputeLoss:
 
     def __call__(self, preds, targets, masks, adds, dels):  # predictions, targets, model
         p, proto = preds
-        #p = [layer.unsqueeze(0) for layer in p]
+        # Filter targets for those associated with the first image.
         targets = targets[targets[:, 0] == 0]
         bs, nm, mask_h, mask_w = proto.shape  # batch size, number of masks, mask height, mask width
         lcls = torch.zeros(1, device=self.device)
@@ -61,6 +61,8 @@ class ComputeLoss:
 
             n = b.shape[0]  # number of targets
             if n:
+                # TODO magic numbers everywhere. Added a 1 in the first
+                # argument to split() to account for the deletions.
                 pxy, pwh, _, pcls, pmask, pdel = pi[b, a, gj, gi].split((2, 2, 1, self.nc, nm, 1), 1)  # subset of predictions
 
                 # Box regression

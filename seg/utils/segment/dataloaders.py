@@ -90,15 +90,20 @@ class FramePairDataset(Dataset):
     def __init__(self, org_dataset):
 
         def sort_key(item):
+            """ Extract frame ID so we can sort frames chronologically."""
             item_id = int(re.match(r'.*-(\d+).png', item[2])[1])
             return item_id
 
         self.org_dataset = org_dataset
         camera_items = collections.defaultdict(list)
         sorted_items = sorted(self.org_dataset, key=sort_key)
+        # Gather a list of sorted frames for each camera
         for item in sorted_items:
             cam_id = re.match(r'cam(\d+)-.*', Path(item[2]).name)[1]
             camera_items[cam_id].append(item)
+
+        # For each camera, pair adjacent frames, then unify them all into one
+        # list at the end.
         self.paired_items = []
         for cam_id in camera_items:
             items_copy = copy.deepcopy(camera_items[cam_id])
@@ -154,6 +159,13 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
                                   data_dict['names'].items()}
 
     def get_raw_obj_id(self, id_):
+        """ Given an object ID, convert it into an ID indicating the 'raw'
+        object. For example, if the label 'del_can' has an ID in
+        categories.json as 15, and 'can' has
+        an ID 3 in the data YAML, then convert input 15 into 3. That is, once
+        we discount the deletion/addition status what is the ID of the object
+        class?
+        """
         label = self.id2label[id_]
         if 'add_' in label or 'del_' in label:
             raw_label = re.match(r'.*_(.+)', label)[1]

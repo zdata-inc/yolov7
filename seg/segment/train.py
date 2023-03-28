@@ -62,7 +62,7 @@ from yolov7.seg.utils.segment.plots import plot_images_and_masks, plot_results_w
 from yolov7.seg.utils.torch_utils import (EarlyStopping, ModelEMA, de_parallel, select_device, smart_DDP, smart_optimizer,
                                smart_resume, torch_distributed_zero_first)
 
-from yolov7.seg.segment.val import DEL_NAMES
+from yolov7.seg.segment.val import DEL_NAMES # For use in naming metrics.
 
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv('RANK', -1))
@@ -88,7 +88,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     # This is how we'll do it initially for change detection. We can adjust it
     # later but for now we'll assume we always have batches of two, with the
     # first image being before, and the second image being after.
-    assert batch_size == 1 
+    assert batch_size == 1
 
     # Directories
     w = save_dir / 'weights'  # weights dir
@@ -306,6 +306,9 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         # b = int(random.uniform(0.25 * imgsz, 0.75 * imgsz + gs) // gs * gs)
         # dataset.mosaic_border = [b - imgsz, -b]  # height, width borders
 
+        # TODO A proper explanation or removal of the magic numbers is
+        # required. 4 changed to 5 when adding the deletion loss as
+        # part of the change detection code.
         mloss = torch.zeros(5, device=device)  # mean losses
         if RANK != -1:
             train_loader.sampler.set_epoch(epoch)
@@ -316,12 +319,15 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             pbar = tqdm(pbar, total=nb, bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')  # progress bar
         optimizer.zero_grad()
         for i, (imgs, targets, paths, _, masks, adds, dels) in pbar:  # batch ------------------------------------------------------
+            # We frame all labels / losses in terms of the first image, so here
+            # we filter targets, masks, dels for the first image. Features are
+            # merged in from the second image, but we only predict objects as
+            # labeled for the first image as well as deletions.
             first_img_ixs = targets[:, 0] == 0
             targets = targets[first_img_ixs]
             masks = masks[first_img_ixs]
             dels = dels[first_img_ixs]
             imgs = imgs.squeeze()
-            #paths = paths[0]
             # callbacks.run('on_train_batch_start')
             ni = i + nb * epoch  # number integrated batches (since train start)
             imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
@@ -375,6 +381,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             if RANK in {-1, 0}:
                 mloss = (mloss * i + loss_items) / (i + 1)  # update mean losses
                 mem = f'{torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3g}G'  # (GB)
+                # TODO These magic numbers are gross. I changes 6 to 7 to
+                # account for del loss.
                 pbar.set_description(('%11s' * 2 + '%11.4g' * 7) %
                                      (f'{epoch}/{epochs - 1}', mem, *mloss, targets.shape[0], imgs.shape[-1]))
                 # callbacks.run('on_train_batch_end', model, ni, imgs, targets, paths)
@@ -430,6 +438,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
 
             class_results = {}
             for i, name in names.items():
+                # TODO These magic numbers are gross. I changed 4 to 5 to
+                # account for deletions.
                 keys = [f'{k}/{name}' for k in KEYS[5:]]
                 class_results.update(dict(zip(keys,
                                      metrics.class_result(i))))
