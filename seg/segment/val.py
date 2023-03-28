@@ -371,8 +371,9 @@ def run(
                               torch.sigmoid(predn[:, -1]), (predn[:, -1] > 0)*1, dels*1))
 
             pred_masks = torch.as_tensor(pred_masks, dtype=torch.uint8)
-            if plots and batch_i < 3:
-                plot_masks.append(pred_masks.cpu())  # filter top 15 to plot
+            #if plots and batch_i < 3:
+            if plots:
+                plot_masks.append(pred_masks.cpu())
 
             # Save/log
             if save_txt:
