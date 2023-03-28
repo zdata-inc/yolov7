@@ -111,6 +111,14 @@ class FramePairDataset(Dataset):
                 # Indicate that this is actually the second example.
                 item[1][:, 0] = 1
             self.paired_items.extend(list(zip(camera_items[cam_id], items_copy[1:])))
+            # Create a set of pairs of frames where the latter frame comes
+            # first
+            swap_pairs = list(zip(camera_items[cam_id][1:], items_copy))
+            # Then make the dels the adds and the adds the dels.
+            swap_pairs = [(frame_b[:-2] + (frame_b[-1],) + (frame_b[-2],),
+                           frame_a[:-2] + (frame_a[-1],) + (frame_a[-2],))
+                           for (frame_b, frame_a) in swap_pairs]
+            self.paired_items.extend(swap_pairs)
         self.labels = self.org_dataset.labels
         self.shapes = self.org_dataset.shapes
 
