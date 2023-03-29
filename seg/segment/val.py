@@ -377,8 +377,11 @@ def run(
                 if plots:
                     confusion_matrix.process_batch(predn, labelsn)
             stats.append((correct_masks, correct_bboxes, pred[:, 4], pred[:, 5], labels[:, 0]))  # (conf, pcls, tcls)
+
             del_stats.append((correct_masks_dels, correct_bboxes_dels,
-                              torch.sigmoid(predn[:, -1]), (predn[:, -1] > 0)*1, dels*1))
+                              pred[:, 4], #objectness confidence
+                              (predn[:, -1] > 0)*1, # Logits > 0 are called del predictions, <= 0 not dels.
+                              dels*1)) # del ground truths
 
             pred_masks = torch.as_tensor(pred_masks, dtype=torch.uint8)
             #if plots and batch_i < 3:
