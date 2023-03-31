@@ -269,8 +269,9 @@ def copy_paste(im, labels, segments, im2, labels2, segments2, p=0.5):
 
 
     cv2.imwrite('im-aug.png', im)
-    breakpoint()
-    return im, labels, segments
+    #labels = np.concatenate((labels, np.stack(cp_labels)))
+    #segments = segments + cp_segments
+    return im, labels, segments, np.stack(cp_labels), cp_segments
 
 
 def cutout(im, labels, p=0.5):

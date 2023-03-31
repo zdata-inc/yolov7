@@ -130,7 +130,10 @@ class ChangeDataAugDataset(Dataset):
             # TODO Need to remove hardcoding of these values, they need to be gleaned from the image itself.
             im2_segments = [xyn2xy(x, 640, 360, 0, 140) for x in im2_segments]
 
-            copy_paste(im, im_labels, segments, im2, im2_labels, im2_segments)
+            im_aug, labels, segments, cp_labels, cp_segments = copy_paste(im, im_labels, segments, im2, im2_labels, im2_segments)
+            breakpoint()
+            org_dataset[im_id][0] = cv2.cvtColor(im_aug, cv2.COLOR_RGB2BGR)
+            self.paired_items.append()
 
         # Do the copy-paste augmentation of some labels
         # Need to figure out how to get the arguments I need to supply to copy paste function.
