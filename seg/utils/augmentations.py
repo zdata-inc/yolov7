@@ -235,27 +235,41 @@ def random_perspective(im,
     return im, targets
 
 
-def copy_paste(im, labels, segments, p=0.5):
+def copy_paste(im, labels, segments, im2, labels2, segments2, p=0.5):
     # Implement Copy-Paste augmentation https://arxiv.org/abs/2012.07177, labels as nx5 np.array(cls, xyxy)
-    n = len(segments)
+    p = 0.5
+    cv2.imwrite('im0.png', im)
+    cv2.imwrite('im2.png', im2)
+    #from PIL import ImageDraw
+    n = len(segments2)
     if p and n:
         h, w, c = im.shape  # height, width, channels
         im_new = np.zeros(im.shape, np.uint8)
+
+        cp_segments = []
+        cp_labels = []
         for j in random.sample(range(n), k=round(p * n)):
-            l, s = labels[j], segments[j]
-            box = w - l[3], l[2], w - l[1], l[4]
-            ioa = bbox_ioa(box, labels[:, 1:5])  # intersection over area
+            l, s = labels2[j], segments2[j]
+            #box = w - l[3], l[2], w - l[1], l[4] # What is the point of this line? Looks like it's doing some sort of flipping.
+            ioa = bbox_ioa(l[1:5], labels[:, 1:5])  # intersection over area
             if (ioa < 0.30).all():  # allow 30% obscuration of existing labels
-                labels = np.concatenate((labels, [[l[0], *box]]), 0)
-                segments.append(np.concatenate((w - s[:, 0:1], s[:, 1:2]), 1))
-                cv2.drawContours(im_new, [segments[j].astype(np.int32)], -1, (255, 255, 255), cv2.FILLED)
-
-        result = cv2.bitwise_and(src1=im, src2=im_new)
-        result = cv2.flip(result, 1)  # augment segments (flip left-right)
-        i = result > 0  # pixels to replace
+                cp_labels.append(l)
+                cp_segments.append(s)
+                #labels = np.concatenate((labels, [[l[0], *box]]), 0)
+                #segments.append(np.concatenate((w - s[:, 0:1], s[:, 1:2]), 1))
+                cv2.drawContours(im_new, [segments2[j].astype(np.int32)], -1, (255, 255, 255), cv2.FILLED)
+        cv2.imwrite('im-new.png', im_new)
+        cp_im = cv2.bitwise_and(src1=im2, src2=im_new)
+        cv2.imwrite('cp-im.png', cp_im)
+        #result = cv2.flip(result, 1)  # augment segments (flip left-right)
+        i = cp_im > 0  # pixels to replace
+        #breakpoint()
         # i[:, :] = result.max(2).reshape(h, w, 1)  # act over ch
-        im[i] = result[i]  # cv2.imwrite('debug.jpg', im)  # debug
+        im[i] = cp_im[i]  # cv2.imwrite('debug.jpg', im)  # debug
 
+
+    cv2.imwrite('im-aug.png', im)
+    breakpoint()
     return im, labels, segments
 
 

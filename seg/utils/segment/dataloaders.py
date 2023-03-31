@@ -63,7 +63,8 @@ def create_dataloader(path,
             overlap=overlap_mask,
             data_dict=data_dict)
 
-    dataset = FramePairDataset(dataset)
+    #dataset = FramePairDataset(dataset)
+    dataset = ChangeDataAugDataset(dataset)
 
     batch_size = min(batch_size, len(dataset))
     nd = torch.cuda.device_count()  # number of CUDA devices
@@ -85,6 +86,64 @@ def create_dataloader(path,
         # generator=generator,
     ), dataset
 
+
+
+class ChangeDataAugDataset(Dataset):
+    def __init__(self, org_dataset):
+        """ For each of the items in the dataset, create a pair of items and add a change. """
+
+        #breakpoint()
+        # For each of the images, augment the image with copy-paste objects from its own object set. (Could take them from other images but for now we won't since it retains the same scale nicely)
+        """
+        all_labels = []
+        for im_labels in org_dataset.labels:
+            im_labels[:, 1:] = xywhn2xyxy(im_labels[:, 1:])
+            all_labels.append(im_labels)
+        all_labels = np.concatenate(all_labels)
+        all_segments = []
+        for im_segments in org_dataset.segments:
+            all_segments.extend([xyn2xy(x, 640, 640, 0, 0) for x in im_segments])
+        all_ims = []
+        """
+ 
+        
+        
+
+        #breakpoint()
+        #all_segments = [segment for im_segments in org_dataset.segments for segment in im_segments]
+        for im_id in range(len(org_dataset)):
+            im_labels = org_dataset.labels[im_id]
+            im_labels[:, 1:] = xywhn2xyxy(im_labels[:, 1:]) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
+            im = org_dataset[im_id][0].transpose(0, 2).transpose(0, 1).cpu().numpy()
+            im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+            segments = org_dataset.segments[im_id]
+            segments = [xyn2xy(x, 640, 360, 0, 0) for x in segments]
+
+
+            im2_id = random.randint(0, len(org_dataset)-1)
+            #_, _, (h, w) = self.load_image(im2_id)
+            im2 = org_dataset[im2_id][0].transpose(0, 2).transpose(0, 1).cpu().numpy()
+            im2 = cv2.cvtColor(im2, cv2.COLOR_BGR2RGB)
+            im2_labels = org_dataset.labels[im2_id]
+            im2_labels[:, 1:] = xywhn2xyxy(im2_labels[:, 1:]) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
+            im2_segments = org_dataset.segments[im2_id]
+            # TODO Need to remove hardcoding of these values, they need to be gleaned from the image itself.
+            im2_segments = [xyn2xy(x, 640, 360, 0, 140) for x in im2_segments]
+
+            copy_paste(im, im_labels, segments, im2, im2_labels, im2_segments)
+
+        # Do the copy-paste augmentation of some labels
+        # Need to figure out how to get the arguments I need to supply to copy paste function.
+
+        # Create one pair where the copy-pasted item(s) occur in the first frame, and flag them as deletions
+
+        # Create another pair where the copy-pasted item(s) occur in the second frame, and don't flag any deletions of existing labels.
+
+    def __getitem__(self, i):
+        return LoadImagesAndLabelsAndMasks.collate_fn(self.paired_items[i])
+
+    def __len__(self):
+        return len(self.paired_items)
 
 class FramePairDataset(Dataset):
     def __init__(self, org_dataset):
@@ -330,6 +389,7 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
 
             labels, segments = self.labels[index].copy(), self.segments[index].copy()
 
+            breakpoint()
             if labels.size:
                 labels[:, 1:] = xywhn2xyxy(labels[:, 1:], w, h, padw, padh)  # normalized xywh to pixel xyxy format
                 segments = [xyn2xy(x, w, h, padw, padh) for x in segments]
