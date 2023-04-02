@@ -426,7 +426,9 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                                                          overlap=overlap)
 
             # Update best mAP
-            fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
+            #fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
+            del_id_to_name = {n: i for (i, n) in del_names.items()}
+            fi = fitness(np.array(del_metrics.class_result(del_id_to_name['del'])).reshape(1, -1))
             stop = stopper(epoch=epoch, fitness=fi)  # early stop check
             if fi > best_fitness:
                 best_fitness = fi

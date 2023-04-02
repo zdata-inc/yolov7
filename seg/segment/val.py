@@ -380,6 +380,7 @@ def run(
 
             del_stats.append((correct_masks_dels, correct_bboxes_dels,
                               pred[:, 4], #objectness confidence
+                              #torch.sigmoid(predn[:, -1]), # del confidence
                               (predn[:, -1] > 0)*1, # Logits > 0 are called del predictions, <= 0 not dels.
                               dels*1)) # del ground truths
 
