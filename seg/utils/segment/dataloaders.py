@@ -65,6 +65,7 @@ def create_dataloader(path,
 
     #dataset = FramePairDataset(dataset)
     dataset = ChangeDataAugDataset(dataset)
+    breakpoint()
 
     batch_size = min(batch_size, len(dataset))
     nd = torch.cuda.device_count()  # number of CUDA devices
@@ -106,9 +107,7 @@ class ChangeDataAugDataset(Dataset):
         all_ims = []
         """
  
-        
-        
-
+        self.paired_items = []
         #breakpoint()
         #all_segments = [segment for im_segments in org_dataset.segments for segment in im_segments]
         for im_id in range(len(org_dataset)):
@@ -128,19 +127,33 @@ class ChangeDataAugDataset(Dataset):
             im2_labels[:, 1:] = xywhn2xyxy(im2_labels[:, 1:]) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
             im2_segments = org_dataset.segments[im2_id]
             # TODO Need to remove hardcoding of these values, they need to be gleaned from the image itself.
+            # Note the height of 360 here is a result of scaling the width from the original image down to 640 and maintaining the width-to-height ratio.
             im2_segments = [xyn2xy(x, 640, 360, 0, 140) for x in im2_segments]
 
+            # Do the copy-paste augmentation of some labels
             im_aug, labels, segments, cp_labels, cp_segments = copy_paste(im, im_labels, segments, im2, im2_labels, im2_segments)
-            breakpoint()
-            org_dataset[im_id][0] = cv2.cvtColor(im_aug, cv2.COLOR_RGB2BGR)
-            self.paired_items.append()
 
-        # Do the copy-paste augmentation of some labels
-        # Need to figure out how to get the arguments I need to supply to copy paste function.
+            # Create pair where the copy-pasted item(s) occur in the first frame, and flag them as deletions
+            example = list(org_dataset[im_id])
+            example[0] = cv2.cvtColor(im_aug, cv2.COLOR_RGB2BGR)
+            del_labels = torch.concatenate((torch.tensor([0]*len(cp_labels)).unsqueeze(1), torch.tensor(xyxy2xywhn(cp_labels))), axis=1) # Add the missing first column that indicates image ID in the pair.
+            example[1] = torch.concatenate((example[1], del_labels)) # Add the copy-paste del labels onto our existing labels.
+            cp_masks = polygons2masks(im.shape[:2], cp_segments, color=1, downsample_ratio=org_dataset.downsample_ratio)
+            example[4] = torch.concatenate((example[4], torch.tensor(cp_masks)))
+            example[6] = torch.concatenate((example[6], torch.tensor([True]*len(cp_labels))))
 
-        # Create one pair where the copy-pasted item(s) occur in the first frame, and flag them as deletions
+            # Now we need to supply the image, along with all labels and segments and indicate them as dels.
+            self.paired_items.append((example, org_dataset[im_id]))
 
-        # Create another pair where the copy-pasted item(s) occur in the second frame, and don't flag any deletions of existing labels.
+            # Create another pair where the copy-pasted item(s) occur in the second frame, and don't flag any deletions of existing labels.
+            example = list(org_dataset[im_id])
+            example[0] = cv2.cvtColor(im_aug, cv2.COLOR_RGB2BGR)
+            add_labels = torch.concatenate((torch.tensor([0]*len(cp_labels)).unsqueeze(1), torch.tensor(xyxy2xywhn(cp_labels))), axis=1) # Add the missing first column that indicates image ID in the pair.
+            example[1] = torch.concatenate((example[1], add_labels)) # Add the copy-paste add labels onto our existing labels.
+            cp_masks = polygons2masks(im.shape[:2], cp_segments, color=1, downsample_ratio=org_dataset.downsample_ratio)
+            example[4] = torch.concatenate((example[4], torch.tensor(cp_masks)))
+            example[5] = torch.concatenate((example[6], torch.tensor([True]*len(cp_labels))))
+            self.paired_items.append((org_dataset[im_id], example))
 
     def __getitem__(self, i):
         return LoadImagesAndLabelsAndMasks.collate_fn(self.paired_items[i])
