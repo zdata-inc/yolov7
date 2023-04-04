@@ -241,8 +241,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                                        hyp=hyp,
                                        augment=False,
                                        cache=None if noval else opt.cache,
-                                       #rect=True,
-                                       rect=False, # TODO Switch back to True once hardcoding is fixed in ChangeDataAugDataset
+                                       rect=True,
                                        rank=-1,
                                        workers=workers,
                                        pad=0.5,

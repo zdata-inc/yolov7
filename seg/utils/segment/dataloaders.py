@@ -103,7 +103,9 @@ class ChangeDataAugDataset(Dataset):
             im = org_dataset[im_id][0].transpose(0, 2).transpose(0, 1).cpu().numpy()
             im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
             segments = org_dataset.segments[im_id]
-            segments = [xyn2xy(x, 640, 360, 0, 0) for x in segments] # TODO remove hardcoding here.
+            padw, padh = org_dataset[im_id][7]
+            w, h = org_dataset[im_id][8]
+            segments = [xyn2xy(x, w, h, padw, padh) for x in segments] # TODO remove hardcoding here.
 
             im2_id = random.randint(0, len(org_dataset)-1)
             while im2_id == im_id:
@@ -118,7 +120,9 @@ class ChangeDataAugDataset(Dataset):
             # TODO Need to remove hardcoding of these values, they need to be gleaned from the image itself.
             # Note the height of 360 here is a result of scaling the width from the original image down to 640 and maintaining the width-to-height ratio.
             #im2_segments = [xyn2xy(x, 640, 360, 0, 140) for x in im2_segments]
-            im2_segments = [xyn2xy(x, 640, 360, 0, 140) for x in im2_segments] 
+            padw, padh = org_dataset[im2_id][7]
+            w, h = org_dataset[im2_id][8]
+            im2_segments = [xyn2xy(x, w, h, padw, padh) for x in im2_segments] 
 
             # Do the copy-paste augmentation of some labels
             im_aug, labels, segments, cp_labels, cp_segments = copy_paste(im, im_labels, segments, im2, im2_labels, im2_segments)
@@ -374,7 +378,7 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
         labels_out[:, 1] = torch.tensor([self.get_raw_obj_id(id_.item()) for id_ in labels_out[:, 1]])
 
         return (torch.from_numpy(img), labels_out, self.im_files[index],
-                shapes, masks, adds, dels)
+                shapes, masks, adds, dels, pad, (w, h))
 
     def load_mosaic(self, index):
         # YOLOv5 4-mosaic loader. Loads 1 image + 3 random images into a 4-image mosaic
@@ -409,7 +413,6 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
 
             labels, segments = self.labels[index].copy(), self.segments[index].copy()
 
-            breakpoint()
             if labels.size:
                 labels[:, 1:] = xywhn2xyxy(labels[:, 1:], w, h, padw, padh)  # normalized xywh to pixel xyxy format
                 segments = [xyn2xy(x, w, h, padw, padh) for x in segments]
@@ -437,7 +440,7 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
 
     @staticmethod
     def collate_fn(batch):
-        img, label, path, shapes, masks, adds, dels = zip(*batch)  # transposed
+        img, label, path, shapes, masks, adds, dels, pad, (w, h) = zip(*batch)  # transposed
         batched_masks = torch.cat(masks, 0)
         for i, l in enumerate(label):
             l[:, 0] = i  # add target image index for build_targets()
