@@ -93,17 +93,6 @@ class ChangeDataAugDataset(Dataset):
         """ For each of the items in the dataset, create a pair of items and add a change. """
 
         # For each of the images, augment the image with copy-paste objects from its own object set. (Could take them from other images but for now we won't since it retains the same scale nicely)
-        """
-        all_labels = []
-        for im_labels in org_dataset.labels:
-            im_labels[:, 1:] = xywhn2xyxy(im_labels[:, 1:])
-            all_labels.append(im_labels)
-        all_labels = np.concatenate(all_labels)
-        all_segments = []
-        for im_segments in org_dataset.segments:
-            all_segments.extend([xyn2xy(x, 640, 640, 0, 0) for x in im_segments])
-        all_ims = []
-        """
         self.paired_items = []
 
         #for im_id in range(len(org_dataset)):
@@ -114,12 +103,12 @@ class ChangeDataAugDataset(Dataset):
             im = org_dataset[im_id][0].transpose(0, 2).transpose(0, 1).cpu().numpy()
             im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
             segments = org_dataset.segments[im_id]
-            segments = [xyn2xy(x, 640, 360, 0, 0) for x in segments]
+            segments = [xyn2xy(x, 640, 360, 0, 0) for x in segments] # TODO remove hardcoding here.
 
             im2_id = random.randint(0, len(org_dataset)-1)
             while im2_id == im_id:
                 im2_id = random.randint(0, len(org_dataset)-1)
-            im2_id = 50
+            im2_id = 50 # TODO Remove hardcoding here
             #_, _, (h, w) = self.load_image(im2_id)
             im2 = org_dataset[im2_id][0].transpose(0, 2).transpose(0, 1).cpu().numpy()
             im2 = cv2.cvtColor(im2, cv2.COLOR_BGR2RGB)
@@ -129,7 +118,7 @@ class ChangeDataAugDataset(Dataset):
             # TODO Need to remove hardcoding of these values, they need to be gleaned from the image itself.
             # Note the height of 360 here is a result of scaling the width from the original image down to 640 and maintaining the width-to-height ratio.
             #im2_segments = [xyn2xy(x, 640, 360, 0, 140) for x in im2_segments]
-            im2_segments = [xyn2xy(x, 640, 360, 0, 140) for x in im2_segments]
+            im2_segments = [xyn2xy(x, 640, 360, 0, 140) for x in im2_segments] 
 
             # Do the copy-paste augmentation of some labels
             im_aug, labels, segments, cp_labels, cp_segments = copy_paste(im, im_labels, segments, im2, im2_labels, im2_segments)
