@@ -134,39 +134,38 @@ class ChangeDataAugDataset(Dataset):
             # Do the copy-paste augmentation of some labels
             im_aug, labels, segments, cp_labels, cp_segments = copy_paste(im, im_labels, segments, im2, im2_labels, im2_segments)
 
-
-            example2 = copy.deepcopy(list(org_dataset[im_id]))
-            example2[1][:, 0] = 1
-
             # Create pair where the copy-pasted item(s) occur in the first frame, and flag them as deletions
-            example = list(org_dataset[im_id])
+            example = copy.deepcopy(list(org_dataset[im_id]))
             example[0] = torch.tensor(cv2.cvtColor(im_aug, cv2.COLOR_RGB2BGR)).transpose(0, 1).transpose(0, 2)
             cv2.imwrite('torch-im.png', cv2.cvtColor(example[0].transpose(0, 2).transpose(0, 1).cpu().numpy(), cv2.COLOR_BGR2RGB))
-            example[1][:, 0] = 0
             if cp_labels.size != 0:
-                #del_labels = torch.concatenate((torch.tensor([0]*len(cp_labels)).unsqueeze(1), torch.tensor(cp_labels[:, 0:2]), torch.tensor(xyxy2xywhn(cp_labels[:, 2:]))), axis=1) # Add the missing first column that indicates image ID in the pair.
                 cp_labels[:, 2:] = torch.tensor(xyxy2xywhn(cp_labels[:, 2:]))
                 example[1] = torch.concatenate((example[1], torch.tensor(cp_labels))) # Add the copy-paste del labels onto our existing labels.
+                example[1][:, 0] = 0
                 cp_masks = polygons2masks(im.shape[:2], cp_segments, color=1, downsample_ratio=org_dataset.downsample_ratio)
                 example[4] = torch.concatenate((example[4], torch.tensor(cp_masks)))
+                example[5] = torch.concatenate((example[5], torch.tensor([False]*len(cp_labels))))
                 example[6] = torch.concatenate((example[6], torch.tensor([True]*len(cp_labels))))
-
+            example2 = copy.deepcopy(list(org_dataset[im_id]))
+            example2[1][:, 0] = 1
             # Now we need to supply the image, along with all labels and segments and indicate them as dels.
             self.paired_items.append((example, example2))
 
-            """
             # Create another pair where the copy-pasted item(s) occur in the second frame, and don't flag any deletions of existing labels.
-            example = list(org_dataset[im_id])
-            example[0] = torch.tensor(cv2.cvtColor(im_aug, cv2.COLOR_RGB2BGR)).transpose(0, 1).transpose(0, 2)
+            example = copy.deepcopy(list(org_dataset[im_id]))
+            example[1][:, 0] = 0
+            example2 = copy.deepcopy(list(org_dataset[im_id]))
+            example2[0] = torch.tensor(cv2.cvtColor(im_aug, cv2.COLOR_RGB2BGR)).transpose(0, 1).transpose(0, 2)
             if cp_labels.size != 0:
-                add_labels = torch.concatenate((torch.tensor([0]*len(cp_labels)).unsqueeze(1), torch.tensor(xyxy2xywhn(cp_labels))), axis=1) # Add the missing first column that indicates image ID in the pair.
-                example[1] = torch.concatenate((example[1], add_labels)) # Add the copy-paste add labels onto our existing labels.
+                cp_labels[:, 2:] = torch.tensor(xyxy2xywhn(cp_labels[:, 2:]))
+                example2[1] = torch.concatenate((example2[1], torch.tensor(cp_labels))) # Add the copy-paste del labels onto our existing labels.
+                example2[1][:, 0] = 1
                 cp_masks = polygons2masks(im.shape[:2], cp_segments, color=1, downsample_ratio=org_dataset.downsample_ratio)
                 example[4] = torch.concatenate((example[4], torch.tensor(cp_masks)))
-                example[5] = torch.concatenate((example[6], torch.tensor([True]*len(cp_labels))))
+                example[5] = torch.concatenate((example[5], torch.tensor([True]*len(cp_labels))))
+                example[6] = torch.concatenate((example[6], torch.tensor([False]*len(cp_labels))))
 
-            self.paired_items.append((org_dataset[im_id], example))
-            """
+            self.paired_items.append((example, example2))
 
         self.labels = org_dataset.labels
         self.shapes = org_dataset.shapes
