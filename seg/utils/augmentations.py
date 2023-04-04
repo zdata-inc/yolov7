@@ -244,12 +244,20 @@ def copy_paste(im, labels, segments, im2, labels2, segments2, p=0.5):
     n = len(segments2)
     if p and n:
         h, w, c = im.shape  # height, width, channels
-        im_new = np.zeros(im.shape, np.uint8)
+        im_new = np.zeros(im2.shape, np.uint8)
 
         cp_segments = []
         cp_labels = []
         for j in random.sample(range(n), k=round(p * n)):
             l, s = labels2[j], segments2[j]
+
+            # Check if this object's coords lie within the first image. Note
+            # that we don't move objects around, we just copy some from one
+            # image and put them on another. We could actually move them around
+            # but that isn't how it's done right now.
+            x0, y0, x1, y1 = l[2:]
+            if x1 >= w or y1 >= h:
+                continue
             #box = w - l[3], l[2], w - l[1], l[4] # What is the point of this line? Looks like it's doing some sort of flipping.
             ioa = bbox_ioa(l[1:5], labels[:, 1:5])  # intersection over area
             if (ioa < 0.30).all():  # allow 30% obscuration of existing labels
@@ -265,7 +273,10 @@ def copy_paste(im, labels, segments, im2, labels2, segments2, p=0.5):
         i = cp_im > 0  # pixels to replace
         #breakpoint()
         # i[:, :] = result.max(2).reshape(h, w, 1)  # act over ch
-        im[i] = cp_im[i]  # cv2.imwrite('debug.jpg', im)  # debug
+        # Account for mismatch in im and im2 shapes. Only copy over content that lies at the intersection of the shapes.
+        i = i[:h, :w, :]
+        cp_h, cp_w = i.shape[:2]
+        im[:cp_h, :cp_w, :][i] = cp_im[:cp_h, :cp_w, :][i]  # cv2.imwrite('debug.jpg', im)  # debug
 
 
     cv2.imwrite('im-aug.png', im)

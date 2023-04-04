@@ -96,7 +96,7 @@ class ChangeDataAugDataset(Dataset):
         self.paired_items = []
 
         #for im_id in range(len(org_dataset)):
-        for im_id in range(1):
+        for im_id in range(len(org_dataset)):
             im_labels = org_dataset[im_id][1]
             #im_labels = org_dataset.labels[im_id]
             im_labels[:, 2:] = xywhn2xyxy(im_labels[:, 2:]) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
@@ -110,8 +110,6 @@ class ChangeDataAugDataset(Dataset):
             im2_id = random.randint(0, len(org_dataset)-1)
             while im2_id == im_id:
                 im2_id = random.randint(0, len(org_dataset)-1)
-            im2_id = 50 # TODO Remove hardcoding here
-            #_, _, (h, w) = self.load_image(im2_id)
             im2 = org_dataset[im2_id][0].transpose(0, 2).transpose(0, 1).cpu().numpy()
             im2 = cv2.cvtColor(im2, cv2.COLOR_BGR2RGB)
             im2_labels = org_dataset[im2_id][1]
