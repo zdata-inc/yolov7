@@ -96,16 +96,18 @@ class ChangeDataAugDataset(Dataset):
         self.paired_items = []
 
         #for im_id in range(len(org_dataset)):
-        for im_id in range(len(org_dataset)):
-            im_labels = org_dataset[im_id][1]
-            #im_labels = org_dataset.labels[im_id]
-            im_labels[:, 2:] = xywhn2xyxy(im_labels[:, 2:]) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
+        for im_id in range(0,5):
             im = org_dataset[im_id][0].transpose(0, 2).transpose(0, 1).cpu().numpy()
             im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+            im_labels = org_dataset[im_id][1]
+            im1_w, im1_h = im.shape[:2]
+            im_labels[:, 2:] = xywhn2xyxy(im_labels[:, 2:], w=im1_w, h=im1_h) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
+            #im_labels[:, 2:] = xywhn2xyxy(im_labels[:, 2:], w=im1_w, h=im1_h) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
+            #im_labels[:, 2:] = xywhn2xyxy(im_labels[:, 2:]) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
             segments = org_dataset.segments[im_id]
             padw, padh = org_dataset[im_id][7]
             w, h = org_dataset[im_id][8]
-            segments = [xyn2xy(x, w, h, padw, padh) for x in segments] # TODO remove hardcoding here.
+            segments = [xyn2xy(x, w, h, padw, padh) for x in segments]
 
             im2_id = random.randint(0, len(org_dataset)-1)
             while im2_id == im_id:
@@ -113,14 +115,21 @@ class ChangeDataAugDataset(Dataset):
             im2 = org_dataset[im2_id][0].transpose(0, 2).transpose(0, 1).cpu().numpy()
             im2 = cv2.cvtColor(im2, cv2.COLOR_BGR2RGB)
             im2_labels = org_dataset[im2_id][1]
-            im2_labels[:, 2:] = xywhn2xyxy(im2_labels[:, 2:]) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
+            im2_w, im2_h = im2.shape[:2]
+            print(f'{im_id=}, {im1_w=}, {im1_h=}, {im2_w=}, {im2_h=}, {w=}, {h=}')
+            im2_labels[:, 2:] = xywhn2xyxy(im2_labels[:, 2:], w=im2_w, h=im2_h) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
+            #im2_labels[:, 2:] = xywhn2xyxy(im2_labels[:, 2:]) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
             im2_segments = org_dataset.segments[im2_id]
             # TODO Need to remove hardcoding of these values, they need to be gleaned from the image itself.
             # Note the height of 360 here is a result of scaling the width from the original image down to 640 and maintaining the width-to-height ratio.
             #im2_segments = [xyn2xy(x, 640, 360, 0, 140) for x in im2_segments]
             padw, padh = org_dataset[im2_id][7]
             w, h = org_dataset[im2_id][8]
+            print(f'im2 {w=}, {h=}')
             im2_segments = [xyn2xy(x, w, h, padw, padh) for x in im2_segments] 
+
+            if im_id == 4:
+                breakpoint()
 
             # Do the copy-paste augmentation of some labels
             im_aug, labels, segments, cp_labels, cp_segments = copy_paste(im, im_labels, segments, im2, im2_labels, im2_segments)
@@ -130,7 +139,8 @@ class ChangeDataAugDataset(Dataset):
             example[0] = torch.tensor(cv2.cvtColor(im_aug, cv2.COLOR_RGB2BGR)).transpose(0, 1).transpose(0, 2)
             cv2.imwrite('torch-im.png', cv2.cvtColor(example[0].transpose(0, 2).transpose(0, 1).cpu().numpy(), cv2.COLOR_BGR2RGB))
             if cp_labels.size != 0:
-                cp_labels[:, 2:] = torch.tensor(xyxy2xywhn(cp_labels[:, 2:]))
+                cp_labels[:, 2:] = torch.tensor(xyxy2xywhn(cp_labels[:, 2:], w=im1_w, h=im1_h))
+                #cp_labels[:, 2:] = torch.tensor(xyxy2xywhn(cp_labels[:, 2:]))
                 example[1] = torch.concatenate((example[1], torch.tensor(cp_labels))) # Add the copy-paste del labels onto our existing labels.
                 example[1][:, 0] = 0
                 cp_masks = polygons2masks(im.shape[:2], cp_segments, color=1, downsample_ratio=org_dataset.downsample_ratio)
@@ -148,7 +158,8 @@ class ChangeDataAugDataset(Dataset):
             example2 = copy.deepcopy(list(org_dataset[im_id]))
             example2[0] = torch.tensor(cv2.cvtColor(im_aug, cv2.COLOR_RGB2BGR)).transpose(0, 1).transpose(0, 2)
             if cp_labels.size != 0:
-                cp_labels[:, 2:] = torch.tensor(xyxy2xywhn(cp_labels[:, 2:]))
+                cp_labels[:, 2:] = torch.tensor(xyxy2xywhn(cp_labels[:, 2:], w=im1_w, h=im1_h))
+                #cp_labels[:, 2:] = torch.tensor(xyxy2xywhn(cp_labels[:, 2:]))
                 example2[1] = torch.concatenate((example2[1], torch.tensor(cp_labels))) # Add the copy-paste del labels onto our existing labels.
                 example2[1][:, 0] = 1
                 cp_masks = polygons2masks(im.shape[:2], cp_segments, color=1, downsample_ratio=org_dataset.downsample_ratio)
