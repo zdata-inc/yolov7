@@ -95,8 +95,8 @@ class ChangeDataAugDataset(Dataset):
         # For each of the images, augment the image with copy-paste objects from its own object set. (Could take them from other images but for now we won't since it retains the same scale nicely)
         self.paired_items = []
 
-        #for im_id in range(len(org_dataset)):
-        for im_id in range(0,5):
+        #for im_id in range(0,5):
+        for im_id in range(len(org_dataset)):
             im = org_dataset[im_id][0].transpose(0, 2).transpose(0, 1).cpu().numpy()
             im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
             im_labels = org_dataset[im_id][1]
@@ -138,8 +138,8 @@ class ChangeDataAugDataset(Dataset):
             ratio = org_dataset[im2_id][9]
             cycle = xyxy2xywhn(xywhn2xyxy(org_dataset.labels[im2_id][:, 1:], w=ratio[0]*w, h=ratio[1]*h, padw=padw, padh=padh), w=im2.shape[1], h=im2.shape[0], clip=True, eps=1e-3)[:5]
 
-            if im_id == 3:
-                breakpoint()
+            #if im_id == 3:
+            #    breakpoint()
 
 
             # Do the copy-paste augmentation of some labels

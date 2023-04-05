@@ -266,6 +266,7 @@ def copy_paste(im, labels, segments, im2, labels2, segments2, p=0.5):
                 #labels = np.concatenate((labels, [[l[0], *box]]), 0)
                 #segments.append(np.concatenate((w - s[:, 0:1], s[:, 1:2]), 1))
                 cv2.drawContours(im_new, [segments2[j].astype(np.int32)], -1, (255, 255, 255), cv2.FILLED)
+                #cv2.rectangle(im_new, tuple(int(x) for x in l[2:4].tolist()), tuple(int(x) for x in l[4:6].tolist()), (0, 255, 0))
         cv2.imwrite('im-new.png', im_new)
         cp_im = cv2.bitwise_and(src1=im2, src2=im_new)
         cv2.imwrite('cp-im.png', cp_im)
