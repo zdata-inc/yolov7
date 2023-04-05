@@ -114,10 +114,8 @@ class ChangeDataAugDataset(Dataset):
                 im2_id = random.randint(0, len(org_dataset)-1)
             im2 = org_dataset[im2_id][0].transpose(0, 2).transpose(0, 1).cpu().numpy()
             im2 = cv2.cvtColor(im2, cv2.COLOR_BGR2RGB)
-            im2_labels = org_dataset[im2_id][1]
             im2_w, im2_h = im2.shape[:2]
             print(f'{im_id=}, {im1_w=}, {im1_h=}, {im2_w=}, {im2_h=}, {w=}, {h=}')
-            im2_labels[:, 2:] = xywhn2xyxy(im2_labels[:, 2:], w=im2_w, h=im2_h) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
             #im2_labels[:, 2:] = xywhn2xyxy(im2_labels[:, 2:]) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
             im2_segments = org_dataset.segments[im2_id]
             # TODO Need to remove hardcoding of these values, they need to be gleaned from the image itself.
@@ -125,10 +123,19 @@ class ChangeDataAugDataset(Dataset):
             #im2_segments = [xyn2xy(x, 640, 360, 0, 140) for x in im2_segments]
             padw, padh = org_dataset[im2_id][7]
             w, h = org_dataset[im2_id][8]
+            im2_labels = org_dataset[im2_id][1]
+            #im2_labels[:, 2:] = xywhn2xyxy(im2_labels[:, 2:], w=im2_w, h=im2_h) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
+            #im2_labels[:, 2:] = xywhn2xyxy(im2_labels[:, 2:], w=im2_w, h=im2_h, padw=padw, padh=padh) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
+            #im2_labels[:, 2:] = xywhn2xyxy(im2_labels[:, 2:], w=w, h=h, padw=padw, padh=padh) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
+            #im2_labels[:, 2:] = xywhn2xyxy(im2_labels[:, 2:], w=w, h=h) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
+            #im2_labels[:, 1:] = xywhn2xyxy(im2_labels[:, 1:], w=w, h=h, padw=padw, padh=padh)
+            im2_labels[:, 2:] = torch.tensor(xywhn2xyxy(org_dataset.labels[im2_id][:, 1:], w=w, h=h, padw=padw, padh=padh))#, dtype=torch.uint8)
+            #im2_labels[:, 2:] = torch.tensor(xywhn2xyxy(org_dataset.labels[im2_id][:, 1:], w=im2_w, h=im2_h))#, dtype=torch.uint8)
+
             print(f'im2 {w=}, {h=}')
             im2_segments = [xyn2xy(x, w, h, padw, padh) for x in im2_segments] 
 
-            if im_id == 4:
+            if im_id == 3:
                 breakpoint()
 
             # Do the copy-paste augmentation of some labels
