@@ -100,7 +100,7 @@ class ChangeDataAugDataset(Dataset):
             im = org_dataset[im_id][0].transpose(0, 2).transpose(0, 1).cpu().numpy()
             im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
             im_labels = org_dataset[im_id][1]
-            im1_w, im1_h = im.shape[:2]
+            im1_h, im1_w = im.shape[:2]
             im_labels[:, 2:] = xywhn2xyxy(im_labels[:, 2:], w=im1_w, h=im1_h) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
             #im_labels[:, 2:] = xywhn2xyxy(im_labels[:, 2:], w=im1_w, h=im1_h) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
             #im_labels[:, 2:] = xywhn2xyxy(im_labels[:, 2:]) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
@@ -114,7 +114,7 @@ class ChangeDataAugDataset(Dataset):
                 im2_id = random.randint(0, len(org_dataset)-1)
             im2 = org_dataset[im2_id][0].transpose(0, 2).transpose(0, 1).cpu().numpy()
             im2 = cv2.cvtColor(im2, cv2.COLOR_BGR2RGB)
-            im2_w, im2_h = im2.shape[:2]
+            im2_h, im2_w = im2.shape[:2]
             print(f'{im_id=}, {im1_w=}, {im1_h=}, {im2_w=}, {im2_h=}, {w=}, {h=}')
             #im2_labels[:, 2:] = xywhn2xyxy(im2_labels[:, 2:]) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
             im2_segments = org_dataset.segments[im2_id]
@@ -135,8 +135,12 @@ class ChangeDataAugDataset(Dataset):
             print(f'im2 {w=}, {h=}')
             im2_segments = [xyn2xy(x, w, h, padw, padh) for x in im2_segments] 
 
+            ratio = org_dataset[im2_id][9]
+            cycle = xyxy2xywhn(xywhn2xyxy(org_dataset.labels[im2_id][:, 1:], w=ratio[0]*w, h=ratio[1]*h, padw=padw, padh=padh), w=im2.shape[1], h=im2.shape[0], clip=True, eps=1e-3)[:5]
+
             if im_id == 3:
                 breakpoint()
+
 
             # Do the copy-paste augmentation of some labels
             im_aug, labels, segments, cp_labels, cp_segments = copy_paste(im, im_labels, segments, im2, im2_labels, im2_segments)
@@ -146,7 +150,7 @@ class ChangeDataAugDataset(Dataset):
             example[0] = torch.tensor(cv2.cvtColor(im_aug, cv2.COLOR_RGB2BGR)).transpose(0, 1).transpose(0, 2)
             cv2.imwrite('torch-im.png', cv2.cvtColor(example[0].transpose(0, 2).transpose(0, 1).cpu().numpy(), cv2.COLOR_BGR2RGB))
             if cp_labels.size != 0:
-                cp_labels[:, 2:] = torch.tensor(xyxy2xywhn(cp_labels[:, 2:], w=im1_w, h=im1_h))
+                cp_labels[:, 2:] = torch.tensor(xyxy2xywhn(cp_labels[:, 2:], w=im1_w, h=im1_h, clip=True, eps=1e-3))
                 #cp_labels[:, 2:] = torch.tensor(xyxy2xywhn(cp_labels[:, 2:]))
                 example[1] = torch.concatenate((example[1], torch.tensor(cp_labels))) # Add the copy-paste del labels onto our existing labels.
                 example[1][:, 0] = 0
@@ -394,7 +398,7 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
         labels_out[:, 1] = torch.tensor([self.get_raw_obj_id(id_.item()) for id_ in labels_out[:, 1]])
 
         return (torch.from_numpy(img), labels_out, self.im_files[index],
-                shapes, masks, adds, dels, pad, (w, h))
+                shapes, masks, adds, dels, pad, (w, h), ratio)
 
     def load_mosaic(self, index):
         # YOLOv5 4-mosaic loader. Loads 1 image + 3 random images into a 4-image mosaic
@@ -456,7 +460,7 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
 
     @staticmethod
     def collate_fn(batch):
-        img, label, path, shapes, masks, adds, dels, pad, (w, h) = zip(*batch)  # transposed
+        img, label, path, shapes, masks, adds, dels, pad, (w, h), ratio = zip(*batch)  # transposed
         batched_masks = torch.cat(masks, 0)
         for i, l in enumerate(label):
             l[:, 0] = i  # add target image index for build_targets()
