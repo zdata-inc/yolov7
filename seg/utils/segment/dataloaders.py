@@ -87,97 +87,124 @@ def create_dataloader(path,
     ), dataset
 
 
-
 class ChangeDataAugDataset(Dataset):
     def __init__(self, org_dataset):
-        """ For each of the items in the dataset, create a pair of items and add a change. """
+        """ Augments an input dataset (`org_dataset`) for the purposes of
+        creating a Change Detection dataset.  For each image in the dataset (the
+        'target' image), take a random selection of objects from a randomly
+        chosen secondary image and copy-paste those objects into the target
+        image. Then pair this augmented version of the image with the original
+        image for the purposes of modeling it with a change detection model.
+        
+        The augmented and original target image are paired and added to the
+        ChangeDataAugDataset twice. The first time, they are added as a tuple
+        with the augmented image first and the original image second. Then in
+        the augmented image, the copy-pasted objects are flagged as 'deletions'
+        to indicate that they are subsequently deleted. The second time they are
+        added as a tuple with the original image first and the augmented image
+        second. In this case the copy-pasted objects are annotated as
+        'additions' in the second image.
+        """
 
-        # For each of the images, augment the image with copy-paste objects from its own object set. (Could take them from other images but for now we won't since it retains the same scale nicely)
         self.paired_items = []
 
-        #for im_id in range(0,5):
         for im_id in range(len(org_dataset)):
+            # The copy-paste function assumes a different ordering of tensor
+            # dimensions, so the below manipulations make the appropriate
+            # changes. Further down we reverse these changes after augmentation
             im = org_dataset[im_id][0].transpose(0, 2).transpose(0, 1).cpu().numpy()
             im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+
+            # Translate the bounding boxes into pixel coordinates.
             im_labels = org_dataset[im_id][1]
             im1_h, im1_w = im.shape[:2]
-            im_labels[:, 2:] = xywhn2xyxy(im_labels[:, 2:], w=im1_w, h=im1_h) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
-            #im_labels[:, 2:] = xywhn2xyxy(im_labels[:, 2:], w=im1_w, h=im1_h) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
-            #im_labels[:, 2:] = xywhn2xyxy(im_labels[:, 2:]) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
+            im_labels[:, 2:] = xywhn2xyxy(im_labels[:, 2:], w=im1_w, h=im1_h)
+
+            # Translate the polygon segments into pixel coordinates.
             segments = org_dataset.segments[im_id]
             padw, padh = org_dataset[im_id][7]
             w, h = org_dataset[im_id][8]
             segments = [xyn2xy(x, w, h, padw, padh) for x in segments]
 
+            # Choose a random image from the dataset to copy objects from
             im2_id = random.randint(0, len(org_dataset)-1)
             while im2_id == im_id:
                 im2_id = random.randint(0, len(org_dataset)-1)
+            
+            # Similar to above, prepare the dimensions of this image so that it
+            # is compatible with the assumptions of copy_paste()
             im2 = org_dataset[im2_id][0].transpose(0, 2).transpose(0, 1).cpu().numpy()
             im2 = cv2.cvtColor(im2, cv2.COLOR_BGR2RGB)
-            im2_h, im2_w = im2.shape[:2]
-            print(f'{im_id=}, {im1_w=}, {im1_h=}, {im2_w=}, {im2_h=}, {w=}, {h=}')
-            #im2_labels[:, 2:] = xywhn2xyxy(im2_labels[:, 2:]) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
-            im2_segments = org_dataset.segments[im2_id]
-            # TODO Need to remove hardcoding of these values, they need to be gleaned from the image itself.
-            # Note the height of 360 here is a result of scaling the width from the original image down to 640 and maintaining the width-to-height ratio.
-            #im2_segments = [xyn2xy(x, 640, 360, 0, 140) for x in im2_segments]
+
+            # Translate bboxes into pixel coordinates
             padw, padh = org_dataset[im2_id][7]
             w, h = org_dataset[im2_id][8]
             im2_labels = org_dataset[im2_id][1]
-            #im2_labels[:, 2:] = xywhn2xyxy(im2_labels[:, 2:], w=im2_w, h=im2_h) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
-            #im2_labels[:, 2:] = xywhn2xyxy(im2_labels[:, 2:], w=im2_w, h=im2_h, padw=padw, padh=padh) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
-            #im2_labels[:, 2:] = xywhn2xyxy(im2_labels[:, 2:], w=w, h=h, padw=padw, padh=padh) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
-            #im2_labels[:, 2:] = xywhn2xyxy(im2_labels[:, 2:], w=w, h=h) # TODO this function assumes 640x640 but probably should parametrize it properly using the actual image sizes.
-            #im2_labels[:, 1:] = xywhn2xyxy(im2_labels[:, 1:], w=w, h=h, padw=padw, padh=padh)
-            im2_labels[:, 2:] = torch.tensor(xywhn2xyxy(org_dataset.labels[im2_id][:, 1:], w=w, h=h, padw=padw, padh=padh))#, dtype=torch.uint8)
-            #im2_labels[:, 2:] = torch.tensor(xywhn2xyxy(org_dataset.labels[im2_id][:, 1:], w=im2_w, h=im2_h))#, dtype=torch.uint8)
+            im2_labels[:, 2:] = torch.tensor(xywhn2xyxy(org_dataset.labels[im2_id][:, 1:],
+                                                        w=w, h=h, padw=padw, padh=padh))
 
-            print(f'im2 {w=}, {h=}')
+            # Translate polygon segments into pixel coordinates
+            im2_segments = org_dataset.segments[im2_id]
             im2_segments = [xyn2xy(x, w, h, padw, padh) for x in im2_segments] 
 
-            ratio = org_dataset[im2_id][9]
-            cycle = xyxy2xywhn(xywhn2xyxy(org_dataset.labels[im2_id][:, 1:], w=ratio[0]*w, h=ratio[1]*h, padw=padw, padh=padh), w=im2.shape[1], h=im2.shape[0], clip=True, eps=1e-3)[:5]
-
-            #if im_id == 3:
-            #    breakpoint()
-
+            # This code here demonstrates how to reverse the translation into
+            # pixel coordinates.  It indicates how the w/h values (which come
+            # from the original image) don't include padding, while the
+            # org_dataset[im2_id] representation includes padding. To translate
+            # from org_dataset.labels[imd2_id] to pixel coordinates, you need
+            # to consider the original size of the image with w/h. But if we
+            # were to translate from org_dataset[im2_id][1] then those
+            # coordinates already factor in the padding, and so we would uset
+            # im2.shape[1] and im2.shape[0] as width and height, respectively.
+            #ratio = org_dataset[im2_id][9]
+            #cycle = xyxy2xywhn(xywhn2xyxy(org_dataset.labels[im2_id][:, 1:], w=ratio[0]*w, h=ratio[1]*h, padw=padw, padh=padh), w=im2.shape[1], h=im2.shape[0], clip=True, eps=1e-3)[:5]
 
             # Do the copy-paste augmentation of some labels
-            im_aug, labels, segments, cp_labels, cp_segments = copy_paste(im, im_labels, segments, im2, im2_labels, im2_segments)
+            im_aug, labels, segments, cp_labels, cp_segments = copy_paste(
+                    im, im_labels, segments, im2, im2_labels, im2_segments)
 
-            # Create pair where the copy-pasted item(s) occur in the first frame, and flag them as deletions
+            # Create a pair of images that represents an example of change
+            # detection. The images are identical, except the first image
+            # contains some objects copy-pasted from a completely different
+            # image. The second image does not have them. In the first image,
+            # those objects are flagged as being 'deleted' (removed).
             example = copy.deepcopy(list(org_dataset[im_id]))
+            # Undo the image transformation we did earlier
             example[0] = torch.tensor(cv2.cvtColor(im_aug, cv2.COLOR_RGB2BGR)).transpose(0, 1).transpose(0, 2)
-            cv2.imwrite('torch-im.png', cv2.cvtColor(example[0].transpose(0, 2).transpose(0, 1).cpu().numpy(), cv2.COLOR_BGR2RGB))
-            if cp_labels.size != 0:
-                cp_labels[:, 2:] = torch.tensor(xyxy2xywhn(cp_labels[:, 2:], w=im1_w, h=im1_h, clip=True, eps=1e-3))
-                #cp_labels[:, 2:] = torch.tensor(xyxy2xywhn(cp_labels[:, 2:]))
-                example[1] = torch.concatenate((example[1], torch.tensor(cp_labels))) # Add the copy-paste del labels onto our existing labels.
-                example[1][:, 0] = 0
-                cp_masks = polygons2masks(im.shape[:2], cp_segments, color=1, downsample_ratio=org_dataset.downsample_ratio)
+            if cp_labels.size != 0: # If there we copy-pasted images (sometimes there aren't)
+                # Re-normalize the bounding boxes for the copy-pasted objects
+                cp_labels[:, 2:] = torch.tensor(xyxy2xywhn(
+                        cp_labels[:, 2:], w=im1_w, h=im1_h, clip=True, eps=1e-3))
+                # Combine copy-pasted objects with the objects that were originally there
+                example[1] = torch.concatenate((example[1], torch.tensor(cp_labels))) 
+                # Flag these as being the first image of the two-image pair
+                example[1][:, 0] = 0 
+                # Create masks from segments of the copy-pasted objects
+                cp_masks = polygons2masks(im.shape[:2], cp_segments, color=1,
+                        downsample_ratio=org_dataset.downsample_ratio)
+                # Combine copy-pasted masks with the original masks
                 example[4] = torch.concatenate((example[4], torch.tensor(cp_masks)))
+                # Flag the added objects as being deletions, but not additions (because they disappear between the first image and the second)
                 example[5] = torch.concatenate((example[5], torch.tensor([False]*len(cp_labels))))
                 example[6] = torch.concatenate((example[6], torch.tensor([True]*len(cp_labels))))
+            # The second image in the pair is an identical copy of the first but without the copy-pasted objects
             example2 = copy.deepcopy(list(org_dataset[im_id]))
             example2[1][:, 0] = 1
-            # Now we need to supply the image, along with all labels and segments and indicate them as dels.
             self.paired_items.append((example, example2))
 
-            # Create another pair where the copy-pasted item(s) occur in the second frame, and don't flag any deletions of existing labels.
+            # Create another pair where the copy-pasted item(s) occur in the second image. Do the same logic as above but flag them as additions instead of deletions.
             example = copy.deepcopy(list(org_dataset[im_id]))
             example[1][:, 0] = 0
             example2 = copy.deepcopy(list(org_dataset[im_id]))
             example2[0] = torch.tensor(cv2.cvtColor(im_aug, cv2.COLOR_RGB2BGR)).transpose(0, 1).transpose(0, 2)
             if cp_labels.size != 0:
                 cp_labels[:, 2:] = torch.tensor(xyxy2xywhn(cp_labels[:, 2:], w=im1_w, h=im1_h))
-                #cp_labels[:, 2:] = torch.tensor(xyxy2xywhn(cp_labels[:, 2:]))
-                example2[1] = torch.concatenate((example2[1], torch.tensor(cp_labels))) # Add the copy-paste del labels onto our existing labels.
+                example2[1] = torch.concatenate((example2[1], torch.tensor(cp_labels)))
                 example2[1][:, 0] = 1
                 cp_masks = polygons2masks(im.shape[:2], cp_segments, color=1, downsample_ratio=org_dataset.downsample_ratio)
                 example[4] = torch.concatenate((example[4], torch.tensor(cp_masks)))
                 example[5] = torch.concatenate((example[5], torch.tensor([True]*len(cp_labels))))
                 example[6] = torch.concatenate((example[6], torch.tensor([False]*len(cp_labels))))
-
             self.paired_items.append((example, example2))
 
         self.labels = org_dataset.labels

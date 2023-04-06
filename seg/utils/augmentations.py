@@ -236,11 +236,15 @@ def random_perspective(im,
 
 
 def copy_paste(im, labels, segments, im2, labels2, segments2, p=0.5):
-    # Implement Copy-Paste augmentation https://arxiv.org/abs/2012.07177, labels as nx5 np.array(cls, xyxy)
-    p = 0.5
-    cv2.imwrite('im0.png', im)
-    cv2.imwrite('im2.png', im2)
-    #from PIL import ImageDraw
+    """ Implement Copy-Paste augmentation https://arxiv.org/abs/2012.07177, labels as nx5 np.array(cls, xyxy).
+    
+    This implementation has been changed from the original implementation found in the YOLOv7 directory.
+    We take objects in image 2 and copy paste them into image 1. We return the augmented image 1, along
+    with a list of its original labels and the labels of the copied objects.
+    """
+    p = 0.5 # TODO Hardcoding this here for the change detection copy-paste augmentation training. Really should load it in from some config and set it appropriately, however.
+    #cv2.imwrite('im0.png', im)
+    #cv2.imwrite('im2.png', im2)
     n = len(segments2)
     if p and n:
         h, w, c = im.shape  # height, width, channels
@@ -267,20 +271,21 @@ def copy_paste(im, labels, segments, im2, labels2, segments2, p=0.5):
                 #segments.append(np.concatenate((w - s[:, 0:1], s[:, 1:2]), 1))
                 cv2.drawContours(im_new, [segments2[j].astype(np.int32)], -1, (255, 255, 255), cv2.FILLED)
                 #cv2.rectangle(im_new, tuple(int(x) for x in l[2:4].tolist()), tuple(int(x) for x in l[4:6].tolist()), (0, 255, 0))
-        cv2.imwrite('im-new.png', im_new)
+        #cv2.imwrite('im-new.png', im_new)
         cp_im = cv2.bitwise_and(src1=im2, src2=im_new)
-        cv2.imwrite('cp-im.png', cp_im)
+        #cv2.imwrite('cp-im.png', cp_im)
         #result = cv2.flip(result, 1)  # augment segments (flip left-right)
         i = cp_im > 0  # pixels to replace
-        #breakpoint()
         # i[:, :] = result.max(2).reshape(h, w, 1)  # act over ch
         # Account for mismatch in im and im2 shapes. Only copy over content that lies at the intersection of the shapes.
+        # So, for example, if im1 is 200x400 and im2 is 400x200, we only copy images across that are in the first 200x200
+        # section of each image. We could be more clever than this, but for now this is how we're doing it. 
         i = i[:h, :w, :]
         cp_h, cp_w = i.shape[:2]
         im[:cp_h, :cp_w, :][i] = cp_im[:cp_h, :cp_w, :][i]  # cv2.imwrite('debug.jpg', im)  # debug
 
 
-    cv2.imwrite('im-aug.png', im)
+    #cv2.imwrite('im-aug.png', im)
     #labels = np.concatenate((labels, np.stack(cp_labels)))
     #segments = segments + cp_segments
     if len(cp_labels) == 0:
